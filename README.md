@@ -1,11 +1,54 @@
-# kernel-flow
+# KernelFlow
 
-Proyecto en desarrollo.
+### Operating Systems Process & Memory Management Simulator
 
-## Estado
+KernelFlow is a console-based Operating Systems simulator developed in Python to explore and implement core concepts of **process scheduling, memory management, process lifecycle, and multiprogramming**.
 
-Repositorio inicializado. La implementacion se agregara en los proximos pasos.
+The project simulates how an operating system admits processes, allocates memory, schedules CPU execution, manages process states, and tracks system activity over time.
 
-## Desarrollo
+> 🚧 **Status:** In Development
 
-Los comandos de desarrollo se documentaran aqui cuando se defina el stack del proyecto.
+---
+
+## 🎯 Project Goals
+
+KernelFlow was designed to simulate the complete lifecycle of a process, from its arrival into the system until its termination.
+
+The simulator focuses on:
+
+- Process admission
+- Process state management
+- Dynamic memory allocation
+- CPU scheduling
+- Multiprogramming
+- Process suspension
+- System event visualization
+- Performance statistics
+
+---
+
+## ⚙️ Core Features
+
+### Process Management
+
+Processes are loaded from a file containing:
+
+- Process ID
+- Process size
+- Arrival time
+- CPU burst time
+
+The simulator supports a maximum of **10 processes** per execution.
+
+---
+
+### Process States
+
+KernelFlow manages the following process states:
+
+```text
+NEW
+READY
+READY / SUSPENDED
+RUNNING
+TERMINATED
