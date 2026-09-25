@@ -10,6 +10,7 @@ decision documentada en el cambio correspondiente.
 ## Contexto del proyecto
 
 - Aplicacion de consola desarrollada en Python 3.
+- El simulador debe hacerse para sistema operativo Linux.
 - Simulador de procesos con planificacion SRTF apropiativa.
 - Administracion de memoria MVT sobre 450K de memoria de usuario.
 - 100K de memoria quedan reservados para el sistema operativo.
@@ -20,6 +21,7 @@ decision documentada en el cambio correspondiente.
   `TERMINADO`.
 - No se implementan E/S ni estado `BLOQUEADO`.
 - La simulacion debe mostrar CPU, memoria, colas, estados y eventos relevantes.
+- Todo el codigo, comentarios y documentacion deben escribirse en espanol.
 
 ## Estado actual
 
