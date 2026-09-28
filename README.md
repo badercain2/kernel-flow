@@ -48,6 +48,15 @@ se reintentan primero los suspendidos en orden de llegada y luego los nuevos
 que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y muestra
 los eventos relevantes, CPU, colas, estados y particiones de memoria.
 
+## Caso de demostracion
+
+`python3 main.py` ejecuta los seis procesos de `data/procesos_demo.csv`. Durante
+el recorrido, P2 apropia la CPU en `t = 1`, P5 espera en
+`LISTO_SUSPENDIDO` desde `t = 4`, P6 apropia la CPU en `t = 6` y P5
+ingresa a memoria en `t = 20`. La ejecucion termina en `t = 31` con los
+450K de usuario libres. Este caso sirve como version candidata para la
+revision de QA en Linux.
+
 ## Estructura
 
 - `carga.py` y `proceso.py`: lectura y modelo de procesos.
