@@ -35,18 +35,15 @@ def ejecutar_simulacion(ruta_csv: Path) -> int:
         print(f"Error: {error}")
         return 1
 
-    try:
-        from admision import Admision
-        from presentacion import PresentacionConsola
-    except ImportError:
-        print(
-            "Error: faltan los modulos admision.py o presentacion.py necesarios "
-            "para integrar la simulacion."
-        )
-        return 1
+    from admision import Admision, ErrorAdmision
+    from presentacion import PresentacionConsola
 
     memoria = GestorMemoria()
-    admision = Admision(procesos, memoria)
+    try:
+        admision = Admision(procesos, memoria)
+    except ErrorAdmision as error:
+        print(f"Error: {error}")
+        return 1
     presentacion = PresentacionConsola(procesos, admision, memoria)
 
     def mostrar_evento(evento: EventoPlanificador) -> None:

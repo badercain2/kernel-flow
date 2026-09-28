@@ -1,104 +1,31 @@
 # KernelFlow
 
-### Operating Systems Process & Memory Management Simulator
+Simulador de procesos y memoria por consola para Linux, desarrollado en Python 3.
+Carga hasta 10 procesos desde un CSV, asigna 450K de memoria de usuario con
+MVT y Best-Fit, y planifica la CPU con SRTF apropiativo. Los primeros 100K
+quedan reservados para el sistema operativo.
 
-KernelFlow is a console-based Operating Systems simulator developed in Python to explore and implement core concepts of **process scheduling, memory management, process lifecycle, and multiprogramming**.
+## Ejecucion
 
-The project simulates how an operating system admits processes, allocates memory, schedules CPU execution, manages process states, and tracks system activity over time.
+Desde la raiz del proyecto:
 
-> 🚧 **Status:** In Development
-
----
-
-## 🎯 Project Goals
-
-KernelFlow was designed to simulate the complete lifecycle of a process, from its arrival into the system until its termination.
-
-The simulator focuses on:
-
-- Process admission
-- Process state management
-- Dynamic memory allocation
-- CPU scheduling
-- Multiprogramming
-- Process suspension
-- System event visualization
-- Performance statistics
-
----
-
-## ⚙️ Core Features
-
-### Process Management
-
-Processes are loaded from a file containing:
-
-- Process ID
-- Process size
-- Arrival time
-- CPU burst time
-
-The simulator supports a maximum of **10 processes** per execution.
-
----
-
-### Process States
-
-KernelFlow manages the following process states:
-
-```text
-NEW
-READY
-READY / SUSPENDED
-RUNNING
-TERMINATED
+```bash
+python3 main.py
 ```
 
----
+Para usar otro archivo:
 
-# KernelFlow (Español)
+```bash
+python3 main.py ruta/al/archivo.csv
+```
 
-### Simulador de Gestión de Procesos y Memoria de Sistemas Operativos
+No se requieren dependencias externas. El archivo predeterminado es
+`data/procesos_demo.csv`.
 
-KernelFlow es un simulador de Sistemas Operativos basado en consola, desarrollado en Python 3 para **sistema operativo Linux**, diseñado para explorar e implementar conceptos centrales de **planificación de procesos, administración de memoria, ciclo de vida de procesos y multiprogramación**.
+## Formato del CSV
 
-El proyecto simula cómo un sistema operativo admite procesos, asigna memoria dinámica (MVT con Best-Fit), planifica la ejecución de CPU (SRTF apropiativo), gestiona los estados de los procesos y registra la actividad del sistema a lo largo del tiempo.
-
-> 🚧 **Estado:** En desarrollo
-
----
-
-## 🎯 Objetivos del Proyecto
-
-KernelFlow fue diseñado para simular el ciclo de vida completo de un proceso, desde su arribo al sistema hasta su finalización.
-
-El simulador se enfoca en:
-
-- Admisión de procesos
-- Gestión de estados de procesos
-- Asignación dinámica de memoria (MVT - Best-Fit)
-- Planificación de CPU (SRTF apropiativo)
-- Multiprogramación (grado máximo 5)
-- Suspensión de procesos (`LISTO_SUSPENDIDO`)
-- Visualización de eventos del sistema
-- Estadísticas de rendimiento
-
----
-
-## ⚙️ Características Principales
-
-### Gestión de Procesos
-
-Los procesos se cargan desde un archivo CSV que contiene:
-
-- ID del proceso (`id`)
-- Tamaño del proceso en KB (`tamanio`)
-- Tiempo de arribo (`tiempo_arribo`)
-- Tiempo de irrupción de CPU (`tiempo_irrupcion`)
-
-El simulador admite un máximo de **10 procesos** por ejecución.
-
-Ejemplo de archivo CSV (`data/procesos_demo.csv`), con el orden `id,tamanio,tiempo_arribo,tiempo_irrupcion` sin encabezado:
+Cada linea contiene `id,tamanio,tiempo_arribo,tiempo_irrupcion`, sin encabezado.
+El tamanio se expresa en KB y los tiempos en unidades discretas.
 
 ```csv
 P1,120,0,8
@@ -106,27 +33,35 @@ P2,150,1,4
 P3,100,2,9
 ```
 
----
+El simulador admite entre 1 y 10 procesos. Un proceso que requiere mas de
+450K se rechaza antes de iniciar, porque nunca podria alojarse en memoria.
 
-### Estados de los Procesos
+## Comportamiento
 
-KernelFlow gestiona los siguientes estados de proceso:
+Los estados son `NUEVO`, `LISTO`, `LISTO_SUSPENDIDO`, `EJECUCION` y
+`TERMINADO`. Como maximo cinco procesos pueden estar simultaneamente en
+`LISTO`, `LISTO_SUSPENDIDO` o `EJECUCION`. Un proceso sin cupo permanece en
+`NUEVO`; uno con cupo pero sin hueco de memoria pasa a `LISTO_SUSPENDIDO`.
 
-```text
-NUEVO
-LISTO
-LISTO_SUSPENDIDO
-EJECUCION
-TERMINADO
-```
+Los arribos simultaneos se atienden segun el orden del CSV. Al liberar memoria,
+se reintentan primero los suspendidos en orden de llegada y luego los nuevos
+que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y muestra
+los eventos relevantes, CPU, colas, estados y particiones de memoria.
 
----
+## Estructura
 
-## 🧪 Ejecución de Pruebas
+- `carga.py` y `proceso.py`: lectura y modelo de procesos.
+- `memoria.py`: MVT y Best-Fit.
+- `estados.py` y `admision.py`: transiciones, cupo y colas.
+- `planificador.py`: reloj y SRTF apropiativo.
+- `presentacion.py`: salida de consola.
+- `main.py`: entrada e integracion de los modulos.
 
-Para ejecutar las pruebas unitarias en Linux:
+## Pruebas
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
+Las estadisticas de espera, retorno, promedios y rendimiento pertenecen a la
+segunda entrega y todavia no se muestran.
