@@ -8,6 +8,7 @@ from proceso import Proceso
 
 
 TIPO_INICIO = "INICIO_EJECUCION"
+TIPO_ARRIBO = "ARRIBO"
 TIPO_APROPIACION = "APROPIACION"
 TIPO_FINALIZACION = "FINALIZACION"
 TIPO_CPU_OCIOSA = "CPU_OCIOSA"
@@ -37,6 +38,9 @@ class AdministradorAdmision(Protocol):
 
     def obtener_listos(self) -> Sequence[Proceso]:
         """Retorna una vista de los procesos que pueden usar la CPU."""
+
+    def obtener_listos_suspendidos(self) -> Sequence[Proceso]:
+        """Retorna la cola de procesos que esperan memoria."""
 
     def enviar_a_ejecucion(self, proceso: Proceso) -> None:
         """Pasa un proceso LISTO a EJECUCION."""
@@ -110,7 +114,10 @@ class PlanificadorSRTF:
 
     def avanzar_unidad(self) -> None:
         """Procesa arribos, reevalua SRTF y avanza una unidad discreta."""
-        self.admision.procesar_arribos(self.reloj)
+        arribados = self.admision.procesar_arribos(self.reloj)
+        if arribados:
+            ids = ", ".join(proceso.id for proceso in arribados)
+            self._emitir(TIPO_ARRIBO, detalle=f"Llegan: {ids}.")
         self._reevaluar_cpu()
 
         if self.proceso_en_ejecucion is None:
