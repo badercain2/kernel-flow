@@ -188,7 +188,7 @@ class PlanificadorSRTF:
             ids = ", ".join(proceso_admitido.id for proceso_admitido in admitidos)
             self._emitir(
                 TIPO_NUEVA_ADMISION,
-                detalle=f"Se admiten desde LISTO_SUSPENDIDO: {ids}.",
+                detalle=f"Se admiten a LISTO: {ids}.",
             )
 
     def _informar_cpu_ociosa(self) -> None:
