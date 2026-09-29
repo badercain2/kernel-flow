@@ -5,6 +5,8 @@ from itertools import zip_longest
 from pathlib import Path
 import shutil
 import sys
+import termios
+import tty
 from typing import Optional, Sequence
 
 from admision import Admision, ErrorAdmision, GRADO_MAXIMO_MULTIPROGRAMACION
@@ -62,11 +64,16 @@ class PanelConsola(PresentacionConsola):
     def mostrar_inicio(self, ruta_csv: Path) -> None:
         print(f"\nKernelFlow | Procesos cargados desde: {ruta_csv}")
 
-    def mostrar_evento(self, evento: EventoPlanificador) -> None:
+    def mostrar_paso(
+        self, eventos: Sequence[EventoPlanificador], tiempo: int, numero: int
+    ) -> None:
+        """Muestra juntos los cambios observados durante un avance del reloj."""
         print("\n" + "=" * 76)
-        print(f"t = {evento.tiempo} | {evento.detalle}")
+        print(f"PASO {numero} | RELOJ: {tiempo} ut")
+        for evento in eventos:
+            print(f"  t = {evento.tiempo} | {evento.detalle}")
         print("-" * 76)
-        self._mostrar_resumen(evento.tiempo)
+        self._mostrar_resumen(tiempo)
         self._mostrar_tablas()
 
     def mostrar_fin(self, tiempo: int) -> None:
@@ -169,8 +176,27 @@ def _mostrar_menu() -> None:
     print("-" * 60)
 
 
+def _esperar_avance() -> bool:
+    """Espera una tecla en Linux; ``q`` permite volver al menu."""
+    print("\n[Espacio/Enter] siguiente cambio  [q] volver al menu: ", end="", flush=True)
+    descriptor = sys.stdin.fileno()
+    configuracion_anterior = termios.tcgetattr(descriptor)
+    try:
+        tty.setcbreak(descriptor)
+        while True:
+            tecla = sys.stdin.read(1)
+            if tecla in (" ", "\r", "\n", "n", "N"):
+                print()
+                return True
+            if tecla in ("q", "Q", ""):
+                print()
+                return False
+    finally:
+        termios.tcsetattr(descriptor, termios.TCSADRAIN, configuracion_anterior)
+
+
 def _menu_interactivo() -> int:
-    """Permite elegir el archivo; la simulacion avanza automaticamente."""
+    """Permite elegir el archivo y volver al menu tras la simulacion."""
     while True:
         _mostrar_menu()
         try:
@@ -234,12 +260,34 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
     clase_presentacion = PanelConsola if modo_visual else PresentacionConsola
     presentacion = clase_presentacion(procesos, admision, memoria)
 
-    def mostrar_evento(evento: EventoPlanificador) -> None:
-        presentacion.mostrar_evento(evento)
-
-    planificador = PlanificadorSRTF(admision, memoria, mostrar_evento)
     presentacion.mostrar_inicio(ruta_csv)
-    planificador.simular()
+
+    if modo_visual:
+        eventos_paso = []
+        planificador = PlanificadorSRTF(admision, memoria, eventos_paso.append)
+        numero_paso = 0
+        while admision.hay_procesos_pendientes():
+            eventos_paso.clear()
+            planificador.avanzar_unidad()
+            if eventos_paso:
+                numero_paso += 1
+                presentacion.mostrar_paso(
+                    eventos_paso, planificador.reloj, numero_paso
+                )
+                if (
+                    sys.stdin.isatty()
+                    and sys.stdout.isatty()
+                    and admision.hay_procesos_pendientes()
+                ):
+                    if not _esperar_avance():
+                        print(f"Simulacion detenida en t = {planificador.reloj}.")
+                        return 0
+    else:
+        planificador = PlanificadorSRTF(
+            admision, memoria, presentacion.mostrar_evento
+        )
+        planificador.simular()
+
     presentacion.mostrar_fin(planificador.reloj)
     return 0
 
@@ -250,7 +298,7 @@ def main(argumentos: Optional[Sequence[str]] = None) -> int:
     try:
         if opciones.archivo is not None:
             return ejecutar_simulacion(opciones.archivo, modo_visual=True)
-        if sys.stdin.isatty():
+        if sys.stdin.isatty() and sys.stdout.isatty():
             return _menu_interactivo()
         return ejecutar_simulacion(RUTA_CSV_PREDETERMINADA, modo_visual=True)
     except (EOFError, KeyboardInterrupt):
