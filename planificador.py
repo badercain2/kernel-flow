@@ -157,38 +157,62 @@ class PlanificadorSRTF:
             return
 
         if elegido is not None:
-            self.admision.enviar_a_ejecucion(elegido)
-            self.proceso_en_ejecucion = elegido
-            self.cambios_contexto += 1
+            self._asignar_cpu(elegido)
             self._emitir(
                 TIPO_INICIO,
                 elegido,
                 f"{elegido.id} ingresa a la CPU.",
             )
 
+    def _asignar_cpu(self, proceso: Proceso) -> None:
+        """Ocupa una CPU libre con un proceso LISTO en el mismo instante."""
+        self.admision.enviar_a_ejecucion(proceso)
+        self.proceso_en_ejecucion = proceso
+        self.cambios_contexto += 1
+
     def _finalizar(self, proceso: Proceso) -> None:
         proceso.tiempo_finalizacion = self.reloj
         self.admision.finalizar(proceso)
         self.proceso_en_ejecucion = None
+
+        memoria_liberada = self.memoria.liberar(proceso)
+        admitidos = self.admision.reintentar_suspendidos()
+        # Los arribos de este mismo instante participan de la eleccion SRTF.
+        arribados = self.admision.procesar_arribos(self.reloj)
+        siguiente = self.seleccionar_srtf(self.admision.obtener_listos())
+        if siguiente is not None:
+            self._asignar_cpu(siguiente)
+
+        # Se informa el cambio cuando la CPU ya tiene su siguiente proceso.
         self._emitir(
             TIPO_FINALIZACION,
             proceso,
             f"{proceso.id} finaliza su ejecucion.",
         )
 
-        if self.memoria.liberar(proceso):
+        if memoria_liberada:
             self._emitir(
                 TIPO_MEMORIA_LIBERADA,
                 proceso,
                 f"Se libera la memoria de {proceso.id}.",
             )
 
-        admitidos = self.admision.reintentar_suspendidos()
         if admitidos:
             ids = ", ".join(proceso_admitido.id for proceso_admitido in admitidos)
             self._emitir(
                 TIPO_NUEVA_ADMISION,
                 detalle=f"Se admiten a LISTO: {ids}.",
+            )
+
+        if arribados:
+            ids = ", ".join(proceso_arribado.id for proceso_arribado in arribados)
+            self._emitir(TIPO_ARRIBO, detalle=f"Llegan: {ids}.")
+
+        if siguiente is not None:
+            self._emitir(
+                TIPO_INICIO,
+                siguiente,
+                f"{siguiente.id} ingresa a la CPU.",
             )
 
     def _informar_cpu_ociosa(self) -> None:
