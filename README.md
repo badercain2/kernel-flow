@@ -19,8 +19,12 @@ Para usar otro archivo:
 python3 main.py ruta/al/archivo.csv
 ```
 
-No se requieren dependencias externas. El archivo predeterminado es
+No se requieren paquetes externos de Python. El archivo predeterminado es
 `data/procesos_demo.csv`.
+
+En el menu interactivo, la opcion 2 abre un explorador de archivos en la raiz
+del proyecto para elegir un CSV. Esta opcion requiere `tkinter` y un entorno
+grafico disponible; al cancelar la seleccion se vuelve al menu.
 
 ## Formato del CSV
 

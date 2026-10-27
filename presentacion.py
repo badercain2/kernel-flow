@@ -1,11 +1,45 @@
 """Salida de consola para los eventos y el estado observable del simulador."""
 
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 from memoria import GestorMemoria, ParticionMemoria
 from planificador import AdministradorAdmision, EventoPlanificador
 from proceso import ESTADO_EJECUCION, Proceso
+
+
+def seleccionar_archivo_csv(directorio_inicial: Path) -> Optional[Path]:
+    """Abre un explorador de archivos para elegir un CSV de procesos."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        print(
+            "No se pudo abrir el explorador: "
+            "falta tkinter en esta instalacion de Python."
+        )
+        return None
+
+    ventana = None
+    try:
+        ventana = tk.Tk()
+        ventana.withdraw()
+        ruta = filedialog.askopenfilename(
+            parent=ventana,
+            title="Seleccionar archivo CSV de procesos",
+            initialdir=str(directorio_inicial),
+            filetypes=(("Archivos CSV", "*.csv"), ("Todos los archivos", "*")),
+        )
+        return Path(ruta) if ruta else None
+    except (tk.TclError, OSError):
+        print(
+            "No se pudo abrir el explorador. "
+            "Verifique que haya un entorno grafico disponible."
+        )
+        return None
+    finally:
+        if ventana is not None:
+            ventana.destroy()
 
 
 class PresentacionConsola:

@@ -13,7 +13,7 @@ from admision import Admision, ErrorAdmision, GRADO_MAXIMO_MULTIPROGRAMACION
 from carga import ErrorCargaProcesos, cargar_procesos
 from memoria import GestorMemoria
 from planificador import EventoPlanificador, PlanificadorSRTF
-from presentacion import PresentacionConsola
+from presentacion import PresentacionConsola, seleccionar_archivo_csv
 from proceso import (
     ESTADO_EJECUCION,
     ESTADO_LISTO_SUSPENDIDO,
@@ -23,6 +23,7 @@ from proceso import (
 
 
 RUTA_CSV_PREDETERMINADA = Path("data/procesos_demo.csv")
+DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
 
 
 def _tabla(encabezados: Sequence[str], filas: Sequence[Sequence[object]]) -> str:
@@ -209,10 +210,9 @@ def _menu_interactivo() -> int:
         if opcion == "1":
             ruta = RUTA_CSV_PREDETERMINADA
         elif opcion == "2":
-            ruta_ingresada = input("Ruta del CSV (Enter para volver): ").strip()
-            if not ruta_ingresada:
+            ruta = seleccionar_archivo_csv(DIRECTORIO_PROYECTO)
+            if ruta is None:
                 continue
-            ruta = Path(ruta_ingresada.strip('"'))
         elif opcion == "3":
             print("\nCSV: id,tamanio,tiempo_arribo,tiempo_irrupcion (sin encabezado).")
             print("Memoria: 100K para SO y 450K para usuario; Best-Fit.")
