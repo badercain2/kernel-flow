@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import termios
+import textwrap
 import tty
 from typing import Optional, Sequence
 
@@ -25,6 +26,30 @@ from proceso import (
 RUTA_CSV_PREDETERMINADA = Path("data/procesos_demo.csv")
 DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
 RUTA_LOGO_UTN = DIRECTORIO_PROYECTO / "data/logo_utn.txt"
+
+
+def _ancho_terminal() -> int:
+    """Obtiene el ancho disponible para presentar el contenido."""
+    return shutil.get_terminal_size(fallback=(100, 24)).columns
+
+
+def _prefijo_centrado(texto: str) -> str:
+    """Agrega espacios a la izquierda sin rellenar el final de la linea."""
+    return " " * max(0, (_ancho_terminal() - len(texto)) // 2) + texto
+
+
+def _imprimir_linea_centrada(texto: str) -> None:
+    print(_prefijo_centrado(texto))
+
+
+def _imprimir_bloque_centrado(lineas: Sequence[str]) -> None:
+    """Centra un bloque conservando la alineacion interna de sus lineas."""
+    if not lineas:
+        return
+    ancho_bloque = max(len(linea) for linea in lineas)
+    margen = " " * max(0, (_ancho_terminal() - ancho_bloque) // 2)
+    for linea in lineas:
+        print(margen + linea if linea else "")
 
 
 def _tabla(encabezados: Sequence[str], filas: Sequence[Sequence[object]]) -> str:
@@ -64,29 +89,38 @@ class PanelConsola(PresentacionConsola):
         self._interactivo = sys.stdout.isatty()
 
     def mostrar_inicio(self, ruta_csv: Path) -> None:
-        print(f"\nKernelFlow | Procesos cargados desde: {ruta_csv}")
+        print()
+        _imprimir_linea_centrada(f"KernelFlow | Procesos cargados desde: {ruta_csv}")
 
     def mostrar_paso(
         self, eventos: Sequence[EventoPlanificador], tiempo: int, numero: int
     ) -> None:
         """Muestra juntos los cambios observados durante un avance del reloj."""
-        ancho = min(shutil.get_terminal_size(fallback=(100, 24)).columns, 100)
+        ancho = _ancho_terminal()
         print("\n\n" + "=" * ancho)
         print()
-        print(f"COMIENZO DEL PASO {numero} | RELOJ: {tiempo} ut")
+        _imprimir_linea_centrada(f"COMIENZO DEL PASO {numero} | RELOJ: {tiempo} ut")
         print()
         print("=" * ancho)
+        lineas_eventos = []
         for evento in eventos:
-            print(f"  t = {evento.tiempo} | {evento.detalle}")
+            lineas_eventos.extend(textwrap.wrap(
+                f"t = {evento.tiempo} | {evento.detalle}",
+                width=max(20, ancho - 8),
+                subsequent_indent="    ",
+            ))
+        _imprimir_bloque_centrado(lineas_eventos)
         print("-" * ancho)
         self._mostrar_resumen(tiempo)
         self._mostrar_tablas()
         print(f" FIN DEL PASO {numero} ".center(ancho, "="))
 
     def mostrar_fin(self, tiempo: int) -> None:
-        print("-" * 76)
-        print(f"Simulacion finalizada en t = {tiempo}.")
-        print(f"Memoria de usuario libre: {self.memoria.memoria_libre_total()}K.")
+        print("-" * _ancho_terminal())
+        _imprimir_linea_centrada(f"Simulacion finalizada en t = {tiempo}.")
+        _imprimir_linea_centrada(
+            f"Memoria de usuario libre: {self.memoria.memoria_libre_total()}K."
+        )
 
     def _mostrar_resumen(self, tiempo: int) -> None:
         en_cpu = next(
@@ -99,19 +133,24 @@ class PanelConsola(PresentacionConsola):
             proceso.estado == ESTADO_TERMINADO for proceso in self.procesos
         )
         resumen = self.memoria.obtener_resumen_memoria()
-        print(
-            f"TIEMPO: {tiempo} ut   CPU: {cpu}   RESTANTE: {restante} ut   "
-            f"TERMINADOS: {terminados}/{len(self.procesos)}"
+        _imprimir_linea_centrada(
+            f"TIEMPO: {tiempo} ut   CPU: {cpu}   RESTANTE: {restante} ut"
         )
-        print(
+        _imprimir_linea_centrada(
+            f"TERMINADOS: {terminados}/{len(self.procesos)}   "
             "MULTIPROGRAMACION: "
             f"{self.admision.grado_multiprogramacion()}/"
-            f"{GRADO_MAXIMO_MULTIPROGRAMACION}   "
+            f"{GRADO_MAXIMO_MULTIPROGRAMACION}"
+        )
+        _imprimir_linea_centrada(
             f"MEMORIA LIBRE: {resumen['memoria_libre_usuario_kb']}K/"
             f"{self.memoria.memoria_usuario_kb}K"
         )
-        print(f"LISTO: {self._formatear_ids(self.admision.obtener_listos())}")
-        print(
+        print()
+        _imprimir_linea_centrada(
+            f"LISTO: {self._formatear_ids(self.admision.obtener_listos())}"
+        )
+        _imprimir_linea_centrada(
             "LISTO_SUSPENDIDO: "
             f"{self._formatear_ids(self.admision.obtener_listos_suspendidos())}"
         )
@@ -154,53 +193,66 @@ class PanelConsola(PresentacionConsola):
         tabla_memoria = self._tabla_memoria().splitlines()
         ancho_procesos = len(tabla_procesos[0])
         ancho_memoria = len(tabla_memoria[0])
-        ancho_terminal = shutil.get_terminal_size(fallback=(80, 24)).columns
+        ancho_terminal = _ancho_terminal()
 
+        print()
         if self._interactivo and ancho_procesos + ancho_memoria + 3 <= ancho_terminal:
-            print(
-                "\n"
-                + "PROCESOS CARGADOS".ljust(ancho_procesos)
+            lineas = [
+                "PROCESOS CARGADOS".ljust(ancho_procesos)
                 + "   MEMORIA PRINCIPAL (KB)"
-            )
+            ]
             for izquierda, derecha in zip_longest(
                 tabla_procesos, tabla_memoria, fillvalue=""
             ):
-                print(f"{izquierda:<{ancho_procesos}}   {derecha}")
+                lineas.append(f"{izquierda:<{ancho_procesos}}   {derecha}")
+            _imprimir_bloque_centrado(lineas)
         else:
-            print("\nPROCESOS CARGADOS")
-            print("\n".join(tabla_procesos))
-            print("\nMEMORIA PRINCIPAL (KB)")
-            print("\n".join(tabla_memoria))
+            _imprimir_linea_centrada("PROCESOS CARGADOS")
+            _imprimir_bloque_centrado(tabla_procesos)
+            print()
+            _imprimir_linea_centrada("MEMORIA PRINCIPAL (KB)")
+            _imprimir_bloque_centrado(tabla_memoria)
 
         resumen = self.memoria.obtener_resumen_memoria()
-        print(f"Libre usuario: {resumen['memoria_libre_usuario_kb']}K")
+        _imprimir_linea_centrada(
+            f"Libre usuario: {resumen['memoria_libre_usuario_kb']}K"
+        )
 
 
 def _mostrar_menu() -> None:
-    print(RUTA_LOGO_UTN.read_text(encoding="utf-8"), end="")
-    print("=" * 60)
-    print("  K E R N E L F L O W")
-    print("  Simulador de procesos y memoria para Linux")
-    print("=" * 60)
-    print("  GRUPO 15")
-    print("  BADER SORAIRE Cain Abel")
-    print("  GONZALEZ Carlos Alfredo")
-    print("  LEIVA ROMERO Agustin Nazareno")
-    print("  SEELAFF Mauricio Guillermo")
-    print("  TORRES Alejandro Valentin")
-    print("  WOLKOWYSKI Braian Leonel")
-    print("  ZURANO LANG Lucas Maximiliano")
-    print("-" * 60)
-    print("  [1] Iniciar simulacion SRTF y Best-Fit (CSV de prueba)")
-    print("  [2] Cargar otro archivo CSV")
-    print("  [3] Ver guia rapida")
-    print("  [0] Salir")
-    print("-" * 60)
+    ancho = _ancho_terminal()
+
+    logo = RUTA_LOGO_UTN.read_text(encoding="utf-8").splitlines()
+    margen_logo = min(len(linea) - len(linea.lstrip()) for linea in logo)
+    _imprimir_bloque_centrado([linea[margen_logo:] for linea in logo])
+
+    print("=" * ancho)
+    _imprimir_linea_centrada("K E R N E L F L O W")
+    _imprimir_linea_centrada("Simulador de procesos y memoria para Linux")
+    print("=" * ancho)
+    _imprimir_linea_centrada("GRUPO 15")
+    _imprimir_bloque_centrado((
+        "BADER SORAIRE Cain Abel",
+        "GONZALEZ Carlos Alfredo",
+        "LEIVA ROMERO Agustin Nazareno",
+        "SEELAFF Mauricio Guillermo",
+        "TORRES Alejandro Valentin",
+        "WOLKOWYSKI Braian Leonel",
+        "ZURANO LANG Lucas Maximiliano",
+    ))
+    print("-" * ancho)
+    _imprimir_bloque_centrado((
+        "[1] Iniciar simulacion SRTF y Best-Fit (CSV de prueba)",
+        "[2] Cargar otro archivo CSV",
+        "[3] Ver guia rapida",
+        "[0] Salir",
+    ))
+    print("-" * ancho)
 
 
 def _mostrar_guia_rapida() -> None:
     """Explica la entrada, las reglas y la lectura de la simulacion."""
-    print("""
+    guia = """
 ============================================================
   GUIA RAPIDA DE KERNELFLOW
 ============================================================
@@ -240,7 +292,8 @@ def _mostrar_guia_rapida() -> None:
    Q: detener la simulacion y volver al menu.
    El reloj avanza internamente; no hace falta pulsar una tecla
    por cada unidad de tiempo.
-============================================================""")
+============================================================"""
+    _imprimir_bloque_centrado(guia.strip("\n").splitlines())
 
 
 def _limpiar_pantalla() -> None:
@@ -251,7 +304,13 @@ def _limpiar_pantalla() -> None:
 
 def _esperar_avance() -> bool:
     """Espera una tecla en Linux; ``q`` permite volver al menu."""
-    print("\n[Espacio/Enter] siguiente cambio  [q] volver al menu: ", end="", flush=True)
+    print(
+        "\n" + _prefijo_centrado(
+            "[Espacio/Enter] siguiente cambio  [q] volver al menu: "
+        ),
+        end="",
+        flush=True,
+    )
     descriptor = sys.stdin.fileno()
     configuracion_anterior = termios.tcgetattr(descriptor)
     try:
@@ -273,7 +332,7 @@ def _menu_interactivo() -> int:
     while True:
         _mostrar_menu()
         try:
-            opcion = input("Opcion: ").strip()
+            opcion = input(_prefijo_centrado("Opcion: ")).strip()
         except EOFError:
             return 0
 
@@ -290,15 +349,15 @@ def _menu_interactivo() -> int:
         elif opcion == "3":
             _limpiar_pantalla()
             _mostrar_guia_rapida()
-            input("\nPresione Enter para volver al menu...")
+            input("\n" + _prefijo_centrado("Presione Enter para volver al menu..."))
             continue
         else:
-            print("Opcion no valida.")
-            input("Presione Enter para continuar...")
+            _imprimir_linea_centrada("Opcion no valida.")
+            input(_prefijo_centrado("Presione Enter para continuar..."))
             continue
 
         ejecutar_simulacion(ruta, modo_visual=True)
-        input("\nPresione Enter para volver al menu...")
+        input("\n" + _prefijo_centrado("Presione Enter para volver al menu..."))
 
 
 def crear_argumentos(argumentos: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -321,14 +380,14 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
     try:
         procesos = cargar_procesos(ruta_csv)
     except ErrorCargaProcesos as error:
-        print(f"Error: {error}")
+        _imprimir_linea_centrada(f"Error: {error}")
         return 1
 
     memoria = GestorMemoria()
     try:
         admision = Admision(procesos, memoria)
     except ErrorAdmision as error:
-        print(f"Error: {error}")
+        _imprimir_linea_centrada(f"Error: {error}")
         return 1
     clase_presentacion = PanelConsola if modo_visual else PresentacionConsola
     presentacion = clase_presentacion(procesos, admision, memoria)
@@ -353,7 +412,9 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
                     and admision.hay_procesos_pendientes()
                 ):
                     if not _esperar_avance():
-                        print(f"Simulacion detenida en t = {planificador.reloj}.")
+                        _imprimir_linea_centrada(
+                            f"Simulacion detenida en t = {planificador.reloj}."
+                        )
                         return 0
     else:
         planificador = PlanificadorSRTF(
@@ -375,7 +436,8 @@ def main(argumentos: Optional[Sequence[str]] = None) -> int:
             return _menu_interactivo()
         return ejecutar_simulacion(RUTA_CSV_PREDETERMINADA, modo_visual=True)
     except (EOFError, KeyboardInterrupt):
-        print("\nSimulacion interrumpida.")
+        print()
+        _imprimir_linea_centrada("Simulacion interrumpida.")
         return 130
 
 

@@ -26,7 +26,9 @@ En el menu interactivo, la opcion 2 limpia el menu y abre un explorador de
 archivos en la raiz del proyecto para elegir un CSV. Esta opcion requiere
 `tkinter` y un entorno grafico disponible; al cancelar la seleccion se vuelve
 al menu.
-El menu muestra el logo compacto de la UTN desde `data/logo_utn.txt`.
+El menu muestra el logo compacto de la UTN desde `data/logo_utn.txt`. El menu,
+la guia y los pasos de la simulacion centran sus bloques segun el ancho de la
+terminal.
 La opcion 1 inicia el caso de prueba SRTF y Best-Fit y limpia el menu de la
 terminal. La opcion 3 limpia el menu y muestra una guia de entrada, reglas,
 estados y controles.
