@@ -10,11 +10,13 @@ from main import ejecutar_simulacion
 from memoria import GestorMemoria
 from planificador import (
     TIPO_APROPIACION,
+    TIPO_ARRIBO,
     TIPO_CPU_OCIOSA,
     TIPO_NUEVA_ADMISION,
     PlanificadorSRTF,
 )
 from proceso import (
+    ESTADO_EJECUCION,
     ESTADO_LISTO_SUSPENDIDO,
     ESTADO_NUEVO,
     ESTADO_TERMINADO,
@@ -104,6 +106,49 @@ class TestIntegracion(unittest.TestCase):
         self.assertEqual(proceso.tiempo_finalizacion, 5)
         self.assertEqual(memoria.memoria_libre_total(), 450)
 
+    def test_cada_arribo_informa_si_queda_listo_suspendido_o_nuevo(self):
+        procesos = [
+            Proceso("P1", 200, 0, 5),
+            Proceso("P2", 200, 0, 5),
+            Proceso("P3", 100, 0, 5),
+            Proceso("P4", 50, 0, 5),
+            Proceso("P5", 50, 0, 5),
+            Proceso("P6", 10, 0, 5),
+        ]
+        memoria = GestorMemoria()
+        admision = Admision(procesos, memoria)
+        eventos = []
+        planificador = PlanificadorSRTF(admision, memoria, eventos.append)
+
+        planificador.avanzar_unidad()
+
+        arribos = {
+            evento.proceso_id: evento.detalle
+            for evento in eventos
+            if evento.tipo == TIPO_ARRIBO
+        }
+        self.assertEqual(len(arribos), 6)
+        self.assertIn("P1 llega y pasa a LISTO", arribos["P1"])
+        self.assertIn("P3 llega y pasa a LISTO_SUSPENDIDO", arribos["P3"])
+        self.assertIn("P6 llega y permanece en NUEVO", arribos["P6"])
+
+    def test_arribo_al_finalizar_conserva_el_estado_de_destino_en_el_evento(self):
+        procesos = [Proceso("P1", 50, 0, 1), Proceso("P2", 50, 1, 2)]
+        memoria = GestorMemoria()
+        admision = Admision(procesos, memoria)
+        eventos = []
+        planificador = PlanificadorSRTF(admision, memoria, eventos.append)
+
+        planificador.avanzar_unidad()
+
+        arribo_p2 = next(
+            evento for evento in eventos
+            if evento.tipo == TIPO_ARRIBO and evento.proceso_id == "P2"
+        )
+        self.assertEqual(arribo_p2.tiempo, 1)
+        self.assertIn("P2 llega y pasa a LISTO", arribo_p2.detalle)
+        self.assertEqual(procesos[1].estado, ESTADO_EJECUCION)
+
     def test_demo_muestra_eventos_colas_memoria_y_finalizacion(self):
         salida = io.StringIO()
         with redirect_stdout(salida):
@@ -111,7 +156,7 @@ class TestIntegracion(unittest.TestCase):
 
         texto = salida.getvalue()
         self.assertEqual(codigo, 0)
-        self.assertIn("t = 0 | Llegan: P1.", texto)
+        self.assertIn("t = 0 | P1 llega y pasa a LISTO", texto)
         self.assertIn("apropia la CPU", texto)
         self.assertIn("LISTO_SUSPENDIDO: P5", texto)
         self.assertIn("Se admiten a LISTO: P5.", texto)

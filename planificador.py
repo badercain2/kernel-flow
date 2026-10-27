@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Protocol, Sequence
 
 from memoria import GestorMemoria
-from proceso import Proceso
+from proceso import ESTADO_LISTO, ESTADO_LISTO_SUSPENDIDO, Proceso
 
 
 TIPO_INICIO = "INICIO_EJECUCION"
@@ -115,9 +115,8 @@ class PlanificadorSRTF:
     def avanzar_unidad(self) -> None:
         """Procesa arribos, reevalua SRTF y avanza una unidad discreta."""
         arribados = self.admision.procesar_arribos(self.reloj)
-        if arribados:
-            ids = ", ".join(proceso.id for proceso in arribados)
-            self._emitir(TIPO_ARRIBO, detalle=f"Llegan: {ids}.")
+        for proceso in arribados:
+            self._emitir(TIPO_ARRIBO, proceso, self._describir_arribo(proceso))
         self._reevaluar_cpu()
 
         if self.proceso_en_ejecucion is None:
@@ -152,7 +151,8 @@ class PlanificadorSRTF:
             self._emitir(
                 TIPO_APROPIACION,
                 elegido,
-                f"{elegido.id} apropia la CPU a {actual.id}.",
+                f"{elegido.id} apropia la CPU a {actual.id} y pasa a EJECUCION; "
+                f"{actual.id} vuelve a LISTO.",
             )
             return
 
@@ -161,7 +161,7 @@ class PlanificadorSRTF:
             self._emitir(
                 TIPO_INICIO,
                 elegido,
-                f"{elegido.id} ingresa a la CPU.",
+                f"{elegido.id} pasa de LISTO a EJECUCION (ingresa a la CPU).",
             )
 
     def _asignar_cpu(self, proceso: Proceso) -> None:
@@ -179,6 +179,7 @@ class PlanificadorSRTF:
         admitidos = self.admision.reintentar_suspendidos()
         # Los arribos de este mismo instante participan de la eleccion SRTF.
         arribados = self.admision.procesar_arribos(self.reloj)
+        detalles_arribo = [self._describir_arribo(arribado) for arribado in arribados]
         siguiente = self.seleccionar_srtf(self.admision.obtener_listos())
         if siguiente is not None:
             self._asignar_cpu(siguiente)
@@ -187,7 +188,7 @@ class PlanificadorSRTF:
         self._emitir(
             TIPO_FINALIZACION,
             proceso,
-            f"{proceso.id} finaliza su ejecucion.",
+            f"{proceso.id} finaliza y pasa a TERMINADO.",
         )
 
         if memoria_liberada:
@@ -204,21 +205,35 @@ class PlanificadorSRTF:
                 detalle=f"Se admiten a LISTO: {ids}.",
             )
 
-        if arribados:
-            ids = ", ".join(proceso_arribado.id for proceso_arribado in arribados)
-            self._emitir(TIPO_ARRIBO, detalle=f"Llegan: {ids}.")
+        for arribado, detalle in zip(arribados, detalles_arribo):
+            self._emitir(TIPO_ARRIBO, arribado, detalle)
 
         if siguiente is not None:
             self._emitir(
                 TIPO_INICIO,
                 siguiente,
-                f"{siguiente.id} ingresa a la CPU.",
+                f"{siguiente.id} pasa de LISTO a EJECUCION (ingresa a la CPU).",
             )
 
     def _informar_cpu_ociosa(self) -> None:
         if not self._cpu_ociosa_informada:
             self._emitir(TIPO_CPU_OCIOSA, detalle="La CPU se encuentra ociosa.")
             self._cpu_ociosa_informada = True
+
+    @staticmethod
+    def _describir_arribo(proceso: Proceso) -> str:
+        """Informa el estado al que pasa cada proceso cuando llega."""
+        if proceso.estado == ESTADO_LISTO:
+            return f"{proceso.id} llega y pasa a LISTO (memoria asignada)."
+        if proceso.estado == ESTADO_LISTO_SUSPENDIDO:
+            return (
+                f"{proceso.id} llega y pasa a LISTO_SUSPENDIDO "
+                "(sin hueco suficiente en memoria)."
+            )
+        return (
+            f"{proceso.id} llega y permanece en NUEVO "
+            "(sin cupo de multiprogramacion)."
+        )
 
     def _emitir(
         self,

@@ -24,6 +24,7 @@ from proceso import (
 
 RUTA_CSV_PREDETERMINADA = Path("data/procesos_demo.csv")
 DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
+RUTA_LOGO_UTN = DIRECTORIO_PROYECTO / "data/logo_utn.txt"
 
 
 def _tabla(encabezados: Sequence[str], filas: Sequence[Sequence[object]]) -> str:
@@ -71,7 +72,9 @@ class PanelConsola(PresentacionConsola):
         """Muestra juntos los cambios observados durante un avance del reloj."""
         ancho = min(shutil.get_terminal_size(fallback=(100, 24)).columns, 100)
         print("\n\n" + "=" * ancho)
-        print(f"INICIO DEL PASO {numero} | RELOJ: {tiempo} ut")
+        print()
+        print(f"COMIENZO DEL PASO {numero} | RELOJ: {tiempo} ut")
+        print()
         print("=" * ancho)
         for evento in eventos:
             print(f"  t = {evento.tiempo} | {evento.detalle}")
@@ -119,6 +122,8 @@ class PanelConsola(PresentacionConsola):
                 proceso.id,
                 proceso.tiempo_arribo,
                 proceso.tamanio,
+                proceso.tiempo_irrupcion,
+                proceso.tiempo_irrupcion - proceso.tiempo_restante,
                 proceso.tiempo_restante,
                 "L/SUSP."
                 if proceso.estado == ESTADO_LISTO_SUSPENDIDO
@@ -126,7 +131,10 @@ class PanelConsola(PresentacionConsola):
             )
             for proceso in self.procesos
         ]
-        return _tabla(("ID", "Arribo", "KB", "CPU", "Estado"), filas)
+        return _tabla(
+            ("ID", "Arribo", "KB", "TI", "Usado", "Restante", "Estado"),
+            filas,
+        )
 
     def _tabla_memoria(self) -> str:
         resumen = self.memoria.obtener_resumen_memoria()
@@ -169,10 +177,20 @@ class PanelConsola(PresentacionConsola):
 
 
 def _mostrar_menu() -> None:
-    print("\n" + "=" * 60)
+    print(RUTA_LOGO_UTN.read_text(encoding="utf-8"), end="")
+    print("=" * 60)
     print("  K E R N E L F L O W")
     print("  Simulador de procesos y memoria para Linux")
     print("=" * 60)
+    print("  GRUPO 15")
+    print("  BADER SORAIRE Cain Abel")
+    print("  GONZALEZ Carlos Alfredo")
+    print("  LEIVA ROMERO Agustin Nazareno")
+    print("  SEELAFF Mauricio Guillermo")
+    print("  TORRES Alejandro Valentin")
+    print("  WOLKOWYSKI Braian Leonel")
+    print("  ZURANO LANG Lucas Maximiliano")
+    print("-" * 60)
     print("  [1] Iniciar simulacion SRTF y Best-Fit (CSV de prueba)")
     print("  [2] Cargar otro archivo CSV")
     print("  [3] Ver guia rapida")

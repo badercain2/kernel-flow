@@ -26,6 +26,7 @@ En el menu interactivo, la opcion 2 limpia el menu y abre un explorador de
 archivos en la raiz del proyecto para elegir un CSV. Esta opcion requiere
 `tkinter` y un entorno grafico disponible; al cancelar la seleccion se vuelve
 al menu.
+El menu muestra el logo compacto de la UTN desde `data/logo_utn.txt`.
 La opcion 1 inicia el caso de prueba SRTF y Best-Fit y limpia el menu de la
 terminal. La opcion 3 limpia el menu y muestra una guia de entrada, reglas,
 estados y controles.
@@ -55,8 +56,12 @@ Los arribos simultaneos se atienden segun el orden del CSV. Al liberar memoria,
 se reintentan primero los suspendidos en orden de llegada y luego los nuevos
 que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y muestra
 los eventos relevantes, CPU, colas, estados y particiones de memoria.
-Cada pantalla de avance muestra "INICIO DEL PASO" y "FIN DEL PASO" con su
+Cada llegada informa a que estado pasa el proceso y, si debe esperar, por que.
+Cada pantalla de avance muestra "COMIENZO DEL PASO" y "FIN DEL PASO" con su
 numero, para distinguir claramente un paso del siguiente.
+En la tabla de procesos, `TI` es el tiempo de irrupcion original, `Usado` es
+el tiempo de CPU ya consumido y `Restante` es el que falta para terminar.
+El tiempo pendiente del proceso que usa la CPU tambien aparece en el resumen.
 
 ## Caso de demostracion
 
