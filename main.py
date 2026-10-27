@@ -69,13 +69,16 @@ class PanelConsola(PresentacionConsola):
         self, eventos: Sequence[EventoPlanificador], tiempo: int, numero: int
     ) -> None:
         """Muestra juntos los cambios observados durante un avance del reloj."""
-        print("\n" + "=" * 76)
-        print(f"PASO {numero} | RELOJ: {tiempo} ut")
+        ancho = min(shutil.get_terminal_size(fallback=(100, 24)).columns, 100)
+        print("\n\n" + "=" * ancho)
+        print(f"INICIO DEL PASO {numero} | RELOJ: {tiempo} ut")
+        print("=" * ancho)
         for evento in eventos:
             print(f"  t = {evento.tiempo} | {evento.detalle}")
-        print("-" * 76)
+        print("-" * ancho)
         self._mostrar_resumen(tiempo)
         self._mostrar_tablas()
+        print(f" FIN DEL PASO {numero} ".center(ancho, "="))
 
     def mostrar_fin(self, tiempo: int) -> None:
         print("-" * 76)
@@ -170,11 +173,62 @@ def _mostrar_menu() -> None:
     print("  K E R N E L F L O W")
     print("  Simulador de procesos y memoria para Linux")
     print("=" * 60)
-    print("  [1] Ejecutar CSV de demostracion")
+    print("  [1] Iniciar simulacion SRTF y Best-Fit (CSV de prueba)")
     print("  [2] Cargar otro archivo CSV")
     print("  [3] Ver guia rapida")
     print("  [0] Salir")
     print("-" * 60)
+
+
+def _mostrar_guia_rapida() -> None:
+    """Explica la entrada, las reglas y la lectura de la simulacion."""
+    print("""
+============================================================
+  GUIA RAPIDA DE KERNELFLOW
+============================================================
+1. Preparar el archivo CSV
+   Una fila representa un proceso. No escriba encabezados.
+   Formato: id,tamanio,tiempo_arribo,tiempo_irrupcion
+   Ejemplo: P1,120,0,8
+   - id: nombre unico del proceso.
+   - tamanio: memoria requerida en KB, entre 1 y 450.
+   - tiempo_arribo: instante de llegada, desde 0.
+   - tiempo_irrupcion: unidades de CPU necesarias, mayor que 0.
+   Se admiten entre 1 y 10 procesos. Los numeros deben ser enteros.
+
+2. Elegir como iniciar
+   [1] Usa el CSV de prueba incluido en data/procesos_demo.csv.
+   [2] Abre un explorador para elegir otro archivo CSV.
+
+3. Que hace el simulador
+   - Reserva 100K para el sistema operativo y 450K para procesos.
+   - MVT crea particiones variables. Best-Fit asigna el hueco libre
+     mas pequeno donde entre cada proceso.
+   - Pueden estar admitidos hasta 5 procesos al mismo tiempo.
+   - SRTF ejecuta el proceso LISTO con menos tiempo de CPU restante.
+     Si llega otro mas corto, puede quitarle la CPU (apropiacion).
+   - Al terminar un proceso, libera su memoria y se vuelve a
+     intentar el ingreso de los que esperan.
+
+4. Como leer la pantalla
+   Se muestran el reloj, la CPU, los eventos, las colas LISTO y
+   LISTO_SUSPENDIDO, el estado de cada proceso y la memoria.
+   NUEVO espera su llegada o un cupo; LISTO espera la CPU;
+   LISTO_SUSPENDIDO espera memoria; EJECUCION usa la CPU;
+   TERMINADO ya completo su trabajo. La CPU puede estar OCIOSA.
+
+5. Controles durante la simulacion
+   Espacio, Enter o N: ver el siguiente cambio relevante.
+   Q: detener la simulacion y volver al menu.
+   El reloj avanza internamente; no hace falta pulsar una tecla
+   por cada unidad de tiempo.
+============================================================""")
+
+
+def _limpiar_pantalla() -> None:
+    """Borra la pantalla al entrar en otra seccion desde el menu."""
+    if sys.stdout.isatty():
+        print("\033[2J\033[H", end="", flush=True)
 
 
 def _esperar_avance() -> bool:
@@ -209,14 +263,15 @@ def _menu_interactivo() -> int:
             return 0
         if opcion == "1":
             ruta = RUTA_CSV_PREDETERMINADA
+            _limpiar_pantalla()
         elif opcion == "2":
+            _limpiar_pantalla()
             ruta = seleccionar_archivo_csv(DIRECTORIO_PROYECTO)
             if ruta is None:
                 continue
         elif opcion == "3":
-            print("\nCSV: id,tamanio,tiempo_arribo,tiempo_irrupcion (sin encabezado).")
-            print("Memoria: 100K para SO y 450K para usuario; Best-Fit.")
-            print("CPU: SRTF apropiativo. Multiprogramacion maxima: 5.")
+            _limpiar_pantalla()
+            _mostrar_guia_rapida()
             input("\nPresione Enter para volver al menu...")
             continue
         else:

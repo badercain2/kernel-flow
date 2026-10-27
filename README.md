@@ -22,9 +22,13 @@ python3 main.py ruta/al/archivo.csv
 No se requieren paquetes externos de Python. El archivo predeterminado es
 `data/procesos_demo.csv`.
 
-En el menu interactivo, la opcion 2 abre un explorador de archivos en la raiz
-del proyecto para elegir un CSV. Esta opcion requiere `tkinter` y un entorno
-grafico disponible; al cancelar la seleccion se vuelve al menu.
+En el menu interactivo, la opcion 2 limpia el menu y abre un explorador de
+archivos en la raiz del proyecto para elegir un CSV. Esta opcion requiere
+`tkinter` y un entorno grafico disponible; al cancelar la seleccion se vuelve
+al menu.
+La opcion 1 inicia el caso de prueba SRTF y Best-Fit y limpia el menu de la
+terminal. La opcion 3 limpia el menu y muestra una guia de entrada, reglas,
+estados y controles.
 
 ## Formato del CSV
 
@@ -51,6 +55,8 @@ Los arribos simultaneos se atienden segun el orden del CSV. Al liberar memoria,
 se reintentan primero los suspendidos en orden de llegada y luego los nuevos
 que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y muestra
 los eventos relevantes, CPU, colas, estados y particiones de memoria.
+Cada pantalla de avance muestra "INICIO DEL PASO" y "FIN DEL PASO" con su
+numero, para distinguir claramente un paso del siguiente.
 
 ## Caso de demostracion
 
