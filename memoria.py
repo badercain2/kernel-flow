@@ -1,6 +1,6 @@
 """Administracion de memoria MVT con estrategia de asignacion Best-Fit."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
 from proceso import Proceso
@@ -22,11 +22,17 @@ def _es_entero_no_negativo(valor: object) -> bool:
 
 @dataclass(frozen=True)
 class ParticionMemoria:
-    """Representa una particion ocupada o un hueco libre en la memoria."""
+    """Representa una particion ocupada o un hueco libre en la memoria.
+
+    ``numero`` es el ID de particion: se asigna al crear la particion para un
+    proceso y no cambia aunque otras particiones se liberen o fusionen. El SO
+    usa el 0 y los huecos libres no tienen numero.
+    """
 
     direccion_inicio: int
     tamanio: int
     proceso_id: Optional[str] = None
+    numero: Optional[int] = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if not _es_entero_no_negativo(self.direccion_inicio):
@@ -75,6 +81,7 @@ class GestorMemoria:
         self._memoria_so_kb = memoria_so_kb
         self._memoria_usuario_kb = memoria_usuario_kb
         self._direccion_inicio_usuario = memoria_so_kb
+        self._siguiente_numero_particion = 1
         self._particiones: List[ParticionMemoria] = [
             ParticionMemoria(
                 direccion_inicio=self._direccion_inicio_usuario,
@@ -109,6 +116,7 @@ class GestorMemoria:
             direccion_inicio=DIRECCION_INICIO_SO,
             tamanio=self._memoria_so_kb,
             proceso_id="SO",
+            numero=0,
         )
 
     def obtener_particiones(self) -> List[ParticionMemoria]:
@@ -201,7 +209,9 @@ class GestorMemoria:
             direccion_inicio=hueco_seleccionado.direccion_inicio,
             tamanio=tamanio_requerido,
             proceso_id=id_proceso,
+            numero=self._siguiente_numero_particion,
         )
+        self._siguiente_numero_particion += 1
 
         tamanio_remanente = hueco_seleccionado.tamanio - tamanio_requerido
         if tamanio_remanente == 0:
