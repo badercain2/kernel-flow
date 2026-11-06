@@ -1,5 +1,6 @@
 """Llegadas, colas y admision de procesos con grado maximo cinco."""
 
+from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
 from estados import cambiar_estado
@@ -21,6 +22,21 @@ class ErrorAdmision(ValueError):
     """Indica que la entrada no permite iniciar una simulacion valida."""
 
 
+@dataclass(frozen=True)
+class Transicion:
+    """Registro de un intento de admision y su resultado.
+
+    Si ``origen`` y ``destino`` coinciden, el proceso no cambio de estado
+    (por ejemplo, un suspendido que todavia no entra en memoria) y ``motivo``
+    explica por que.
+    """
+
+    proceso: Proceso
+    origen: str
+    destino: str
+    motivo: str
+
+
 class Admision:
     """Administra el cupo, la residencia en memoria y las colas de procesos.
 
@@ -40,6 +56,7 @@ class Admision:
         self._listos: List[Proceso] = []
         self._suspendidos: List[Proceso] = []
         self._en_ejecucion: Optional[Proceso] = None
+        self._transiciones: List[Transicion] = []
 
         ids = set()
         for proceso in self.procesos:
@@ -65,6 +82,12 @@ class Admision:
             arribados.append(proceso)
         self._admitir_nuevos()
         return arribados
+
+    def extraer_transiciones(self) -> List[Transicion]:
+        """Retorna y vacia las transiciones de admision registradas."""
+        transiciones = self._transiciones
+        self._transiciones = []
+        return transiciones
 
     def obtener_nuevos(self) -> List[Proceso]:
         """Retorna los procesos en NUEVO, incluidos los que aun no arribaron."""
@@ -115,8 +138,7 @@ class Admision:
         """Reintenta suspendidos y ocupa cupos liberados con procesos NUEVO."""
         admitidos: List[Proceso] = []
         for proceso in list(self._suspendidos):
-            if self.memoria.asignar(proceso) is not None:
-                cambiar_estado(proceso, ESTADO_LISTO)
+            if self._intentar_cargar(proceso, ESTADO_LISTO_SUSPENDIDO):
                 self._suspendidos.remove(proceso)
                 self._listos.append(proceso)
                 admitidos.append(proceso)
@@ -134,11 +156,47 @@ class Admision:
             and self.grado_multiprogramacion() < GRADO_MAXIMO_MULTIPROGRAMACION
         ):
             proceso = self._nuevos_pendientes.pop(0)
-            if self.memoria.asignar(proceso) is None:
-                cambiar_estado(proceso, ESTADO_LISTO_SUSPENDIDO)
-                self._suspendidos.append(proceso)
-            else:
-                cambiar_estado(proceso, ESTADO_LISTO)
+            if self._intentar_cargar(proceso, ESTADO_NUEVO):
                 self._listos.append(proceso)
                 admitidos.append(proceso)
+            else:
+                self._suspendidos.append(proceso)
         return admitidos
+
+    def _intentar_cargar(self, proceso: Proceso, origen: str) -> bool:
+        """Intenta asignar memoria Best-Fit y registra el resultado.
+
+        Retorna ``True`` si el proceso paso a LISTO. Si no hay hueco, un
+        proceso NUEVO pasa a LISTO_SUSPENDIDO y uno suspendido permanece alli.
+        """
+        mayor_hueco = self.memoria.mayor_hueco_libre()
+        libre_total = self.memoria.memoria_libre_total()
+        particion = self.memoria.asignar(proceso)
+
+        if particion is not None:
+            cambiar_estado(proceso, ESTADO_LISTO)
+            motivo = (
+                f"Best-Fit le asigna {particion.tamanio}K en "
+                f"[{particion.direccion_inicio}K - {particion.direccion_fin}K)"
+            )
+            self._transiciones.append(
+                Transicion(proceso, origen, ESTADO_LISTO, motivo)
+            )
+            return True
+
+        if libre_total >= proceso.tamanio:
+            motivo = (
+                f"requiere {proceso.tamanio}K; hay {libre_total}K libres pero "
+                f"el mayor hueco contiguo es de {mayor_hueco}K "
+                "(fragmentacion externa)"
+            )
+        else:
+            motivo = (
+                f"requiere {proceso.tamanio}K y solo hay {libre_total}K libres"
+            )
+        if origen != ESTADO_LISTO_SUSPENDIDO:
+            cambiar_estado(proceso, ESTADO_LISTO_SUSPENDIDO)
+        self._transiciones.append(
+            Transicion(proceso, origen, ESTADO_LISTO_SUSPENDIDO, motivo)
+        )
+        return False

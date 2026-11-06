@@ -1,10 +1,10 @@
 """Planificacion apropiativa SRTF y reloj discreto de la simulacion."""
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol, Sequence
+from typing import Callable, Dict, List, Optional, Protocol, Sequence
 
 from memoria import GestorMemoria
-from proceso import ESTADO_LISTO, ESTADO_LISTO_SUSPENDIDO, Proceso
+from proceso import ESTADO_NUEVO, Proceso
 
 
 TIPO_INICIO = "INICIO_EJECUCION"
@@ -14,6 +14,16 @@ TIPO_FINALIZACION = "FINALIZACION"
 TIPO_CPU_OCIOSA = "CPU_OCIOSA"
 TIPO_MEMORIA_LIBERADA = "MEMORIA_LIBERADA"
 TIPO_NUEVA_ADMISION = "NUEVA_ADMISION"
+TIPO_SIGUE_SUSPENDIDO = "SIGUE_SUSPENDIDO"
+
+
+class TransicionAdmision(Protocol):
+    """Datos minimos de una transicion registrada por admision."""
+
+    proceso: Proceso
+    origen: str
+    destino: str
+    motivo: str
 
 
 @dataclass(frozen=True)
@@ -56,6 +66,12 @@ class AdministradorAdmision(Protocol):
 
     def hay_procesos_pendientes(self) -> bool:
         """Indica si quedan procesos sin terminar."""
+
+    def extraer_transiciones(self) -> Sequence[TransicionAdmision]:
+        """Retorna y vacia los cambios de estado producidos por admision."""
+
+    def grado_multiprogramacion(self) -> int:
+        """Cuenta los procesos en EJECUCION, LISTO y LISTO_SUSPENDIDO."""
 
 
 ObservadorEventos = Callable[[EventoPlanificador], None]
@@ -114,13 +130,28 @@ class PlanificadorSRTF:
 
     def avanzar_unidad(self) -> None:
         """Procesa arribos, reevalua SRTF y avanza una unidad discreta."""
-        arribados = self.admision.procesar_arribos(self.reloj)
-        for proceso in arribados:
-            self._emitir(TIPO_ARRIBO, proceso, self._describir_arribo(proceso))
-        self._reevaluar_cpu()
+        self.procesar_instante()
+        self.ejecutar_unidad()
 
+    def procesar_instante(self) -> None:
+        """Atiende los arribos del instante actual y reevalua la CPU (SRTF).
+
+        No avanza el reloj: luego de llamarlo, el estado observable es el del
+        instante ``self.reloj``.
+        """
+        arribados = self.admision.procesar_arribos(self.reloj)
+        self._informar_arribos(arribados, self.admision.extraer_transiciones())
+        self._reevaluar_cpu()
         if self.proceso_en_ejecucion is None:
             self._informar_cpu_ociosa()
+
+    def ejecutar_unidad(self) -> None:
+        """Ejecuta una unidad de CPU y avanza el reloj de ``t`` a ``t + 1``.
+
+        Si el proceso termina, se informa en ``t + 1`` junto con la liberacion
+        de memoria, las nuevas admisiones y el siguiente proceso en CPU.
+        """
+        if self.proceso_en_ejecucion is None:
             self.reloj += 1
             return
 
@@ -151,18 +182,16 @@ class PlanificadorSRTF:
             self._emitir(
                 TIPO_APROPIACION,
                 elegido,
-                f"{elegido.id} apropia la CPU a {actual.id} y pasa a EJECUCION; "
-                f"{actual.id} vuelve a LISTO.",
+                f"{elegido.id} apropia la CPU a {actual.id}: tiene menor "
+                f"tiempo restante ({elegido.tiempo_restante} ut contra "
+                f"{actual.tiempo_restante} ut). {elegido.id} pasa de LISTO a "
+                f"EJECUCION y {actual.id} pasa de EJECUCION a LISTO.",
             )
             return
 
         if elegido is not None:
             self._asignar_cpu(elegido)
-            self._emitir(
-                TIPO_INICIO,
-                elegido,
-                f"{elegido.id} pasa de LISTO a EJECUCION (ingresa a la CPU).",
-            )
+            self._informar_inicio(elegido)
 
     def _asignar_cpu(self, proceso: Proceso) -> None:
         """Ocupa una CPU libre con un proceso LISTO en el mismo instante."""
@@ -175,65 +204,114 @@ class PlanificadorSRTF:
         self.admision.finalizar(proceso)
         self.proceso_en_ejecucion = None
 
+        particion = self.memoria.obtener_asignacion(proceso)
         memoria_liberada = self.memoria.liberar(proceso)
-        admitidos = self.admision.reintentar_suspendidos()
+        libre_tras_liberar = self.memoria.memoria_libre_total()
+        self.admision.reintentar_suspendidos()
+        transiciones_reintento = self.admision.extraer_transiciones()
         # Los arribos de este mismo instante participan de la eleccion SRTF.
         arribados = self.admision.procesar_arribos(self.reloj)
-        detalles_arribo = [self._describir_arribo(arribado) for arribado in arribados]
+        transiciones_arribo = self.admision.extraer_transiciones()
         siguiente = self.seleccionar_srtf(self.admision.obtener_listos())
         if siguiente is not None:
             self._asignar_cpu(siguiente)
 
-        # Se informa el cambio cuando la CPU ya tiene su siguiente proceso.
+        # Se informan los cambios en el orden en que ocurrieron.
         self._emitir(
             TIPO_FINALIZACION,
             proceso,
-            f"{proceso.id} finaliza y pasa a TERMINADO.",
+            f"{proceso.id} finaliza: completa su tiempo de irrupcion "
+            f"({proceso.tiempo_irrupcion} ut) y pasa de EJECUCION a TERMINADO.",
         )
 
-        if memoria_liberada:
+        if memoria_liberada and particion is not None:
             self._emitir(
                 TIPO_MEMORIA_LIBERADA,
                 proceso,
-                f"Se libera la memoria de {proceso.id}.",
+                f"Se libera la memoria de {proceso.id}: {particion.tamanio}K en "
+                f"[{particion.direccion_inicio}K - {particion.direccion_fin}K). "
+                f"Quedan {libre_tras_liberar}K libres para reintentar admisiones.",
             )
 
-        if admitidos:
-            ids = ", ".join(proceso_admitido.id for proceso_admitido in admitidos)
-            self._emitir(
-                TIPO_NUEVA_ADMISION,
-                detalle=f"Se admiten a LISTO: {ids}.",
-            )
+        for transicion in transiciones_reintento:
+            self._informar_transicion(transicion)
 
-        for arribado, detalle in zip(arribados, detalles_arribo):
-            self._emitir(TIPO_ARRIBO, arribado, detalle)
+        self._informar_arribos(arribados, transiciones_arribo)
 
         if siguiente is not None:
+            self._informar_inicio(siguiente)
+
+    def _informar_inicio(self, proceso: Proceso) -> None:
+        self._emitir(
+            TIPO_INICIO,
+            proceso,
+            f"{proceso.id} pasa de LISTO a EJECUCION (ingresa a la CPU con "
+            f"{proceso.tiempo_restante} ut restantes).",
+        )
+
+    def _informar_arribos(
+        self,
+        arribados: Sequence[Proceso],
+        transiciones: Sequence[TransicionAdmision],
+    ) -> None:
+        """Informa cada arribo junto con el estado al que pasa y el motivo."""
+        ids_arribados = {proceso.id for proceso in arribados}
+        por_proceso: Dict[str, TransicionAdmision] = {}
+        otras: List[TransicionAdmision] = []
+        for transicion in transiciones:
+            proceso_id = transicion.proceso.id
+            if (
+                proceso_id in ids_arribados
+                and transicion.origen == ESTADO_NUEVO
+                and proceso_id not in por_proceso
+            ):
+                por_proceso[proceso_id] = transicion
+            else:
+                otras.append(transicion)
+
+        for proceso in arribados:
+            transicion = por_proceso.get(proceso.id)
+            if transicion is None:
+                detalle = (
+                    f"{proceso.id} llega y permanece en NUEVO (sin cupo de "
+                    "multiprogramacion: ya hay "
+                    f"{self.admision.grado_multiprogramacion()} procesos "
+                    "admitidos)."
+                )
+            else:
+                detalle = (
+                    f"{proceso.id} llega y pasa a {transicion.destino} "
+                    f"({transicion.motivo})."
+                )
+            self._emitir(TIPO_ARRIBO, proceso, detalle)
+
+        for transicion in otras:
+            self._informar_transicion(transicion)
+
+    def _informar_transicion(self, transicion: TransicionAdmision) -> None:
+        proceso = transicion.proceso
+        if transicion.origen == transicion.destino:
             self._emitir(
-                TIPO_INICIO,
-                siguiente,
-                f"{siguiente.id} pasa de LISTO a EJECUCION (ingresa a la CPU).",
+                TIPO_SIGUE_SUSPENDIDO,
+                proceso,
+                f"{proceso.id} permanece en {transicion.destino} "
+                f"({transicion.motivo}).",
             )
+            return
+        self._emitir(
+            TIPO_NUEVA_ADMISION,
+            proceso,
+            f"{proceso.id} pasa de {transicion.origen} a {transicion.destino} "
+            f"({transicion.motivo}).",
+        )
 
     def _informar_cpu_ociosa(self) -> None:
         if not self._cpu_ociosa_informada:
-            self._emitir(TIPO_CPU_OCIOSA, detalle="La CPU se encuentra ociosa.")
-            self._cpu_ociosa_informada = True
-
-    @staticmethod
-    def _describir_arribo(proceso: Proceso) -> str:
-        """Informa el estado al que pasa cada proceso cuando llega."""
-        if proceso.estado == ESTADO_LISTO:
-            return f"{proceso.id} llega y pasa a LISTO (memoria asignada)."
-        if proceso.estado == ESTADO_LISTO_SUSPENDIDO:
-            return (
-                f"{proceso.id} llega y pasa a LISTO_SUSPENDIDO "
-                "(sin hueco suficiente en memoria)."
+            self._emitir(
+                TIPO_CPU_OCIOSA,
+                detalle="La CPU se encuentra ociosa (no hay procesos en LISTO).",
             )
-        return (
-            f"{proceso.id} llega y permanece en NUEVO "
-            "(sin cupo de multiprogramacion)."
-        )
+            self._cpu_ociosa_informada = True
 
     def _emitir(
         self,

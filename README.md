@@ -22,16 +22,18 @@ python3 main.py ruta/al/archivo.csv
 No se requieren paquetes externos de Python. El archivo predeterminado es
 `data/procesos_demo.csv`.
 
-En el menu interactivo, la opcion 2 limpia el menu y abre un explorador de
-archivos en la raiz del proyecto para elegir un CSV. Esta opcion requiere
-`tkinter` y un entorno grafico disponible; al cancelar la seleccion se vuelve
-al menu.
-El menu muestra el logo compacto de la UTN desde `data/logo_utn.txt`. El menu,
-la guia y los pasos de la simulacion centran sus bloques segun el ancho de la
-terminal.
-La opcion 1 inicia el caso de prueba SRTF y Best-Fit y limpia el menu de la
-terminal. La opcion 3 limpia el menu y muestra una guia de entrada, reglas,
-estados y controles.
+El menu muestra el logo de la UTN y una breve descripcion debajo de cada
+opcion. Al elegir una opcion se limpia la pantalla:
+
+- `[1]` simula el CSV de prueba `data/procesos_demo.csv`.
+- `[2]` abre un explorador de archivos para elegir otro CSV (requiere
+  `tkinter` y entorno grafico; al cancelar se vuelve al menu).
+- `[3]` muestra la guia rapida: formato del CSV, reglas, estados, columnas,
+  informe final y controles.
+- `[0]` sale del simulador.
+
+Durante la simulacion, Espacio/Enter avanza al siguiente cambio y `q` vuelve
+al menu. Funciona en Linux y tambien en Windows (`py main.py`).
 
 ## Formato del CSV
 
@@ -56,23 +58,44 @@ Los estados son `NUEVO`, `LISTO`, `LISTO_SUSPENDIDO`, `EJECUCION` y
 
 Los arribos simultaneos se atienden segun el orden del CSV. Al liberar memoria,
 se reintentan primero los suspendidos en orden de llegada y luego los nuevos
-que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y muestra
-los eventos relevantes, CPU, colas, estados y particiones de memoria.
-Cada llegada informa a que estado pasa el proceso y, si debe esperar, por que.
-Cada pantalla de avance muestra "COMIENZO DEL PASO" y "FIN DEL PASO" con su
-numero, para distinguir claramente un paso del siguiente.
-En la tabla de procesos, `TI` es el tiempo de irrupcion original, `Usado` es
-el tiempo de CPU ya consumido y `Restante` es el que falta para terminar.
-El tiempo pendiente del proceso que usa la CPU tambien aparece en el resumen.
+que esperan cupo. La simulacion avanza sin pedir una tecla por unidad y se
+detiene en cada instante con cambios relevantes (llegadas, finalizaciones,
+admisiones, apropiaciones o CPU ociosa).
+
+Cada paso empieza con "COMIENZO DEL PASO" y termina con "FIN DEL PASO", y
+muestra el estado del sistema en el instante del evento (`t`). Dentro del paso
+se informan todas las transiciones con su origen, destino y motivo, por
+ejemplo:
+
+- `P5 llega y pasa a LISTO_SUSPENDIDO (requiere 200K y solo hay 0K libres).`
+- `P5 permanece en LISTO_SUSPENDIDO (... el mayor hueco contiguo es de 150K (fragmentacion externa)).`
+- `P2 apropia la CPU a P1 ... P2 pasa de LISTO a EJECUCION y P1 pasa de EJECUCION a LISTO.`
+
+Las colas muestran el tiempo restante de cada proceso entre parentesis. En la
+tabla de procesos, `T. Irrupcion` es el tiempo de irrupcion original,
+`T. Ejecutado` el tiempo de CPU ya consumido y `T. Restante` el que falta para
+terminar. La tabla de particiones muestra el ID de particion (0 es el SO),
+direccion de comienzo, tamanio, proceso asignado y fragmentacion interna, que
+en MVT es siempre 0K porque cada particion se crea del tamanio exacto del
+proceso.
+
+Al terminar, se presenta el informe estadistico:
+
+- tiempo de retorno = finalizacion - arribo;
+- tiempo de espera = retorno - irrupcion (incluye el tiempo en `NUEVO`,
+  `LISTO_SUSPENDIDO` y `LISTO`);
+- promedios de retorno y espera;
+- rendimiento = trabajos terminados / tiempo total de la simulacion.
 
 ## Caso de demostracion
 
 `python3 main.py` ejecuta los seis procesos de `data/procesos_demo.csv`. Durante
 el recorrido, P2 apropia la CPU en `t = 1`, P5 espera en
-`LISTO_SUSPENDIDO` desde `t = 4`, P6 apropia la CPU en `t = 6` y P5
-ingresa a memoria en `t = 20`. La ejecucion termina en `t = 31` con los
-450K de usuario libres. Este caso sirve como version candidata para la
-revision de QA en Linux.
+`LISTO_SUSPENDIDO` desde `t = 4` (en `t = 13` hay 230K libres pero
+fragmentados), P6 apropia la CPU en `t = 6` y P5 ingresa a memoria en
+`t = 20`. La ejecucion termina en `t = 31` con los 450K de usuario libres,
+retorno promedio de 14.00 ut, espera promedio de 8.83 ut y rendimiento de
+0.1935 trabajos por unidad de tiempo.
 
 ## Estructura
 
@@ -80,14 +103,12 @@ revision de QA en Linux.
 - `memoria.py`: MVT y Best-Fit.
 - `estados.py` y `admision.py`: transiciones, cupo y colas.
 - `planificador.py`: reloj y SRTF apropiativo.
-- `presentacion.py`: salida de consola.
-- `main.py`: entrada e integracion de los modulos.
+- `estadisticas.py`: retorno, espera, promedios y rendimiento.
+- `presentacion.py`: salida de consola e informe final.
+- `main.py`: menu, entrada e integracion de los modulos.
 
 ## Pruebas
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
-
-Las estadisticas de espera, retorno, promedios y rendimiento pertenecen a la
-segunda entrega y todavia no se muestran.
