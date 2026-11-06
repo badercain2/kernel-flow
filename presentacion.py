@@ -162,15 +162,15 @@ class PresentacionConsola:
     def tabla_memoria(self) -> str:
         """Tabla de particiones exigida por la consigna.
 
-        Las particiones se numeran por direccion: 0 es el SO y desde 1 las de
-        usuario. En MVT cada particion se crea del tamanio exacto del proceso,
-        por lo que la fragmentacion interna es siempre 0K; los huecos libres
-        no tienen fragmentacion interna porque no estan asignados.
+        El ID de particion lo asigna memoria al crear cada particion y no
+        cambia mientras exista (0 es el SO); los huecos libres se muestran
+        con "-". En MVT cada particion se crea del tamanio exacto del
+        proceso, por lo que la fragmentacion interna es siempre 0K.
         """
         resumen = self.memoria.obtener_resumen_memoria()
         particiones = [resumen["particion_so"], *resumen["particiones_usuario"]]
         filas = []
-        for numero, particion in enumerate(particiones):
+        for particion in particiones:
             if particion.libre:
                 asignado, fragmentacion = "LIBRE", "-"
             else:
@@ -178,7 +178,7 @@ class PresentacionConsola:
                 fragmentacion = "-" if particion.proceso_id == "SO" else "0"
             filas.append(
                 (
-                    numero,
+                    "-" if particion.numero is None else particion.numero,
                     particion.direccion_inicio,
                     particion.tamanio,
                     asignado,
@@ -222,9 +222,11 @@ def formatear_informe(informe: InformeEstadistico) -> str:
             fila.id,
             fila.tiempo_arribo,
             fila.tiempo_irrupcion,
+            fila.tiempo_inicio,
             fila.tiempo_finalizacion,
             fila.tiempo_retorno,
             fila.tiempo_espera,
+            fila.tiempo_respuesta,
         )
         for fila in informe.procesos
     ]
@@ -234,8 +236,10 @@ def formatear_informe(informe: InformeEstadistico) -> str:
             "",
             "",
             "",
+            "",
             f"{informe.retorno_promedio:.2f}",
             f"{informe.espera_promedio:.2f}",
+            f"{informe.respuesta_promedio:.2f}",
         )
     )
     lineas = [
@@ -245,17 +249,22 @@ def formatear_informe(informe: InformeEstadistico) -> str:
                 "ID",
                 "T. Arribo",
                 "T. Irrupcion",
+                "T. Inicio",
                 "T. Finalizacion",
                 "T. Retorno",
                 "T. Espera",
+                "T. Respuesta",
             ),
             filas,
         ),
-        "T. Retorno = T. Finalizacion - T. Arribo",
-        "T. Espera  = T. Retorno - T. Irrupcion",
+        "T. Inicio    = primer instante en que el proceso usa la CPU",
+        "T. Retorno   = T. Finalizacion - T. Arribo",
+        "T. Espera    = T. Retorno - T. Irrupcion",
+        "T. Respuesta = T. Inicio - T. Arribo",
         "",
-        f"Tiempo de retorno promedio: {informe.retorno_promedio:.2f} ut",
-        f"Tiempo de espera promedio:  {informe.espera_promedio:.2f} ut",
+        f"Tiempo de retorno promedio:   {informe.retorno_promedio:.2f} ut",
+        f"Tiempo de espera promedio:    {informe.espera_promedio:.2f} ut",
+        f"Tiempo de respuesta promedio: {informe.respuesta_promedio:.2f} ut",
         (
             f"Rendimiento del sistema: {informe.trabajos_terminados} trabajos / "
             f"{informe.tiempo_total} ut = {informe.rendimiento:.4f} "

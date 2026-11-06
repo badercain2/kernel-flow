@@ -5,6 +5,7 @@ Convenciones (unidades de tiempo discretas, ut):
     - Tiempo de espera  = tiempo de retorno - tiempo de irrupcion.
       Incluye todo el tiempo que el proceso estuvo en el sistema sin usar la
       CPU: en NUEVO esperando cupo, en LISTO_SUSPENDIDO y en LISTO.
+    - Tiempo de respuesta = primer instante en CPU - tiempo de arribo.
     - Rendimiento = trabajos terminados / tiempo total de la simulacion.
       El tiempo total es el instante en que termina el ultimo proceso.
 """
@@ -26,6 +27,7 @@ class EstadisticaProceso:
     tiempo_finalizacion: int
     tiempo_retorno: int
     tiempo_espera: int
+    tiempo_respuesta: int
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class InformeEstadistico:
     procesos: List[EstadisticaProceso]
     retorno_promedio: float
     espera_promedio: float
+    respuesta_promedio: float
     tiempo_total: int
     trabajos_terminados: int
     rendimiento: float
@@ -58,6 +61,7 @@ def calcular_estadisticas(
                 tiempo_finalizacion=proceso.tiempo_finalizacion,
                 tiempo_retorno=retorno,
                 tiempo_espera=retorno - proceso.tiempo_irrupcion,
+                tiempo_respuesta=proceso.tiempo_inicio - proceso.tiempo_arribo,
             )
         )
 
@@ -68,12 +72,16 @@ def calcular_estadisticas(
     espera_promedio = (
         sum(fila.tiempo_espera for fila in filas) / cantidad if cantidad else 0.0
     )
+    respuesta_promedio = (
+        sum(fila.tiempo_respuesta for fila in filas) / cantidad if cantidad else 0.0
+    )
     rendimiento = cantidad / tiempo_total if tiempo_total > 0 else 0.0
 
     return InformeEstadistico(
         procesos=filas,
         retorno_promedio=retorno_promedio,
         espera_promedio=espera_promedio,
+        respuesta_promedio=respuesta_promedio,
         tiempo_total=tiempo_total,
         trabajos_terminados=cantidad,
         rendimiento=rendimiento,

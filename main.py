@@ -17,9 +17,14 @@ from presentacion import PresentacionConsola, seleccionar_archivo_csv
 from proceso import ESTADO_TERMINADO, Proceso
 
 
-DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
-RUTA_CSV_PREDETERMINADA = DIRECTORIO_PROYECTO / "data/procesos_demo.csv"
-RUTA_LOGO_UTN = DIRECTORIO_PROYECTO / "data/logo_utn.txt"
+if getattr(sys, "frozen", False):
+    # Ejecutable de PyInstaller: data/ se distribuye junto al ejecutable.
+    DIRECTORIO_PROYECTO = Path(sys.executable).resolve().parent
+else:
+    DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
+DIRECTORIO_DATOS = DIRECTORIO_PROYECTO / "data"
+RUTA_CSV_PREDETERMINADA = DIRECTORIO_DATOS / "procesos_demo.csv"
+RUTA_LOGO_UTN = DIRECTORIO_DATOS / "logo_utn.txt"
 
 
 def _ancho_terminal() -> int:
@@ -63,12 +68,22 @@ class PanelConsola(PresentacionConsola):
         self._interactivo = sys.stdout.isatty()
 
     def mostrar_inicio(self, ruta_csv: Path) -> None:
-        print()
-        _imprimir_linea_centrada(f"KernelFlow | Procesos cargados desde: {ruta_csv}")
+        ancho = _ancho_terminal()
+        print("#" * ancho)
+        _imprimir_linea_centrada("PROCESOS CARGADOS")
+        print("#" * ancho)
+        _imprimir_linea_centrada(f"Archivo: {ruta_csv.name}")
         _imprimir_linea_centrada(
-            f"{len(self.procesos)} proceso(s) en estado NUEVO, esperando su "
-            "tiempo de arribo."
+            f"{len(self.procesos)} proceso(s) leido(s) correctamente. Todos "
+            "comienzan en NUEVO y esperan su tiempo de arribo."
         )
+        print()
+        _imprimir_bloque_centrado(self.tabla_procesos().splitlines())
+        print()
+        _imprimir_bloque_centrado((
+            "Memoria: 100K para el SO + 450K para usuario (MVT, Best-Fit).",
+            "Planificacion: SRTF apropiativo. Multiprogramacion maxima: 5.",
+        ))
 
     def mostrar_paso(
         self, eventos: Sequence[EventoPlanificador], tiempo: int, numero: int
@@ -160,9 +175,10 @@ OPCIONES_MENU = (
     ),
     (
         "2",
-        "Cargar otro archivo CSV",
-        "Abre un explorador para elegir su propio archivo (hasta 10 procesos, "
-        "formato: id,tamanio,arribo,irrupcion) y lo simula.",
+        "Elegir otro archivo CSV",
+        "Lista los lotes de prueba de la carpeta data/ y permite escribir la "
+        "ruta de un archivo propio (hasta 10 procesos, formato: "
+        "id,tamanio,arribo,irrupcion).",
     ),
     (
         "3",
@@ -239,7 +255,8 @@ def _mostrar_guia_rapida() -> None:
 
 2. Elegir como iniciar
    [1] Usa el CSV de prueba incluido en data/procesos_demo.csv.
-   [2] Abre un explorador para elegir otro archivo CSV.
+   [2] Lista los CSV de la carpeta data/ para elegir uno por
+       numero, o permite escribir la ruta de otro archivo.
    [3] Muestra esta guia.
    [0] Cierra el simulador.
 
@@ -273,8 +290,9 @@ def _mostrar_guia_rapida() -> None:
 
 6. Informe final
    Al terminar se muestran, por proceso, el tiempo de retorno
-   (finalizacion - arribo) y de espera (retorno - irrupcion),
-   sus promedios y el rendimiento (trabajos / tiempo total).
+   (finalizacion - arribo), de espera (retorno - irrupcion) y de
+   respuesta (primer uso de CPU - arribo), sus promedios y el
+   rendimiento (trabajos terminados / tiempo total).
 
 7. Controles durante la simulacion
    Espacio, Enter o N: ver el siguiente cambio relevante.
@@ -319,6 +337,11 @@ def _esperar_avance() -> bool:
         end="",
         flush=True,
     )
+    return _esperar_tecla_avance()
+
+
+def _esperar_tecla_avance() -> bool:
+    """Retorna ``True`` para avanzar y ``False`` si se pidio volver al menu."""
     while True:
         tecla = _leer_tecla()
         if tecla in (" ", "\r", "\n", "n", "N"):
@@ -327,6 +350,71 @@ def _esperar_avance() -> bool:
         if tecla in ("q", "Q", "", "\x1b"):
             print()
             return False
+
+
+def _contar_procesos(ruta: Path) -> str:
+    """Cuenta las filas no vacias de un CSV para mostrarlas en la lista."""
+    try:
+        with ruta.open(encoding="utf-8-sig") as archivo:
+            cantidad = sum(1 for linea in archivo if linea.strip())
+    except (OSError, UnicodeDecodeError):
+        return "no se puede leer"
+    return f"{cantidad} proceso(s)"
+
+
+def _elegir_csv() -> Optional[Path]:
+    """Muestra los CSV de data/ y permite elegir uno o escribir otra ruta.
+
+    No depende de un entorno grafico; el explorador de archivos queda como
+    opcion adicional para quien tenga tkinter disponible.
+    """
+    archivos = sorted(
+        ruta for ruta in DIRECTORIO_DATOS.glob("*.csv") if ruta.is_file()
+    )
+    while True:
+        _limpiar_pantalla()
+        ancho = _ancho_terminal()
+        print("=" * ancho)
+        _imprimir_linea_centrada("SELECCIONAR ARCHIVO CSV")
+        print("=" * ancho)
+        lineas = []
+        if archivos:
+            ancho_nombre = max(len(ruta.name) for ruta in archivos)
+            for numero, ruta in enumerate(archivos, start=1):
+                lineas.append(
+                    f"[{numero}] {ruta.name:<{ancho_nombre}}  "
+                    f"({_contar_procesos(ruta)})"
+                )
+        else:
+            lineas.append(f"No hay archivos CSV en {DIRECTORIO_DATOS}.")
+        lineas.extend((
+            "",
+            "[R] Escribir la ruta de otro archivo CSV",
+            "[E] Buscarlo con el explorador de archivos (requiere entorno grafico)",
+            "[0] Volver al menu",
+        ))
+        _imprimir_bloque_centrado(lineas)
+        print("-" * ancho)
+
+        opcion = input(_prefijo_centrado("Opcion: ")).strip().lower()
+        if opcion == "0":
+            return None
+        if opcion.isdigit() and 1 <= int(opcion) <= len(archivos):
+            return archivos[int(opcion) - 1]
+        if opcion == "r":
+            texto = input(_prefijo_centrado("Ruta del archivo CSV: "))
+            ruta = Path(texto.strip().strip('"').strip("'")).expanduser()
+            if ruta.is_file():
+                return ruta
+            _imprimir_linea_centrada(f"No se encontro el archivo '{ruta}'.")
+        elif opcion == "e":
+            ruta = seleccionar_archivo_csv(DIRECTORIO_DATOS)
+            if ruta is not None:
+                return ruta
+            _imprimir_linea_centrada("No se selecciono ningun archivo.")
+        else:
+            _imprimir_linea_centrada("Opcion no valida.")
+        input(_prefijo_centrado("Presione Enter para continuar..."))
 
 
 def _menu_interactivo() -> int:
@@ -345,10 +433,10 @@ def _menu_interactivo() -> int:
             ruta = RUTA_CSV_PREDETERMINADA
             _limpiar_pantalla()
         elif opcion == "2":
-            _limpiar_pantalla()
-            ruta = seleccionar_archivo_csv(DIRECTORIO_PROYECTO)
+            ruta = _elegir_csv()
             if ruta is None:
                 continue
+            _limpiar_pantalla()
         elif opcion == "3":
             _limpiar_pantalla()
             _mostrar_guia_rapida()
@@ -402,6 +490,16 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
         planificador = PlanificadorSRTF(admision, memoria, eventos_paso.append)
         numero_paso = 0
         interactivo = sys.stdin.isatty() and sys.stdout.isatty()
+        if interactivo:
+            print(
+                "\n" + _prefijo_centrado(
+                    "[Espacio/Enter] comenzar la simulacion  [q] volver al menu: "
+                ),
+                end="",
+                flush=True,
+            )
+            if not _esperar_tecla_avance():
+                return 0
         while True:
             # Los eventos de una finalizacion en t (producidos al ejecutar la
             # unidad t-1) se muestran junto con los arribos del mismo t.

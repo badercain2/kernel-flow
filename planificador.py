@@ -228,7 +228,8 @@ class PlanificadorSRTF:
             self._emitir(
                 TIPO_MEMORIA_LIBERADA,
                 proceso,
-                f"Se libera la memoria de {proceso.id}: {particion.tamanio}K en "
+                f"Se libera la memoria de {proceso.id} (particion "
+                f"{particion.numero}): {particion.tamanio}K en "
                 f"[{particion.direccion_inicio}K - {particion.direccion_fin}K). "
                 f"Quedan {libre_tras_liberar}K libres para reintentar admisiones.",
             )

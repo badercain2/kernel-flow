@@ -170,8 +170,9 @@ class TestIntegracion(unittest.TestCase):
         self.assertIn("Libre usuario: 450K", texto)
         self.assertIn("Simulacion finalizada en t = 31.", texto)
         self.assertIn("INFORME ESTADISTICO FINAL", texto)
-        self.assertIn("Tiempo de retorno promedio: 14.00 ut", texto)
-        self.assertIn("Tiempo de espera promedio:  8.83 ut", texto)
+        self.assertIn("Tiempo de retorno promedio:   14.00 ut", texto)
+        self.assertIn("Tiempo de espera promedio:    8.83 ut", texto)
+        self.assertIn("Tiempo de respuesta promedio:", texto)
         self.assertIn("6 trabajos / 31 ut = 0.1935", texto)
 
     def test_nuevo_sin_cupo_que_pasa_a_suspendido_al_finalizar_se_informa(self):

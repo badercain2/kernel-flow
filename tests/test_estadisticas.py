@@ -45,6 +45,10 @@ class TestEstadisticas(unittest.TestCase):
         self.assertEqual(por_id["P1"].tiempo_espera, 2)
         self.assertAlmostEqual(informe.retorno_promedio, 4.5)
         self.assertAlmostEqual(informe.espera_promedio, 1.0)
+        # Ambos usan la CPU apenas llegan: respuesta 0.
+        self.assertEqual(por_id["P1"].tiempo_respuesta, 0)
+        self.assertEqual(por_id["P2"].tiempo_respuesta, 0)
+        self.assertAlmostEqual(informe.respuesta_promedio, 0.0)
         self.assertEqual(informe.trabajos_terminados, 2)
         self.assertAlmostEqual(informe.rendimiento, 2 / 7)
 
@@ -57,6 +61,7 @@ class TestEstadisticas(unittest.TestCase):
         # P2 es mas corto, pero no entra en memoria hasta que P1 termina.
         self.assertEqual(por_id["P2"].tiempo_finalizacion, 4)
         self.assertEqual(por_id["P2"].tiempo_espera, 3)
+        self.assertEqual(por_id["P2"].tiempo_respuesta, 3)
 
     def test_solo_cuenta_procesos_terminados(self):
         terminado = Proceso("P1", 50, 0, 2)

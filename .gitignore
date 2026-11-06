@@ -20,3 +20,8 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# PyInstaller y paquete de entrega
+build/
+dist/
+entrega/

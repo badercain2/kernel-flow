@@ -26,13 +26,15 @@ El menu muestra el logo de la UTN y una breve descripcion debajo de cada
 opcion. Al elegir una opcion se limpia la pantalla:
 
 - `[1]` simula el CSV de prueba `data/procesos_demo.csv`.
-- `[2]` abre un explorador de archivos para elegir otro CSV (requiere
-  `tkinter` y entorno grafico; al cancelar se vuelve al menu).
+- `[2]` lista los CSV de `data/` para elegir uno por numero; con `R` se
+  escribe la ruta de otro archivo y con `E` se abre el explorador de archivos
+  (este ultimo requiere `tkinter` y entorno grafico).
 - `[3]` muestra la guia rapida: formato del CSV, reglas, estados, columnas,
   informe final y controles.
 - `[0]` sale del simulador.
 
-Durante la simulacion, Espacio/Enter avanza al siguiente cambio y `q` vuelve
+Antes de empezar se muestra la tabla de procesos cargados. Durante la
+simulacion, Espacio/Enter avanza al siguiente cambio y `q` vuelve
 al menu. Funciona en Linux y tambien en Windows (`py main.py`).
 
 ## Formato del CSV
@@ -74,8 +76,9 @@ ejemplo:
 Las colas muestran el tiempo restante de cada proceso entre parentesis. En la
 tabla de procesos, `T. Irrupcion` es el tiempo de irrupcion original,
 `T. Ejecutado` el tiempo de CPU ya consumido y `T. Restante` el que falta para
-terminar. La tabla de particiones muestra el ID de particion (0 es el SO),
-direccion de comienzo, tamanio, proceso asignado y fragmentacion interna, que
+terminar. La tabla de particiones muestra el ID de particion (0 es el SO; cada
+particion recibe un numero al crearse y lo conserva hasta liberarse; los huecos
+libres se muestran con `-`), direccion de comienzo, tamanio, proceso asignado y fragmentacion interna, que
 en MVT es siempre 0K porque cada particion se crea del tamanio exacto del
 proceso.
 
@@ -85,6 +88,7 @@ Al terminar, se presenta el informe estadistico:
 - tiempo de espera = retorno - irrupcion (incluye el tiempo en `NUEVO`,
   `LISTO_SUSPENDIDO` y `LISTO`);
 - promedios de retorno y espera;
+- tiempo de respuesta = primer instante en CPU - arribo;
 - rendimiento = trabajos terminados / tiempo total de la simulacion.
 
 ## Caso de demostracion
@@ -97,15 +101,42 @@ fragmentados), P6 apropia la CPU en `t = 6` y P5 ingresa a memoria en
 retorno promedio de 14.00 ut, espera promedio de 8.83 ut y rendimiento de
 0.1935 trabajos por unidad de tiempo.
 
+## Lotes de prueba
+
+| Archivo | Que muestra |
+|---|---|
+| `procesos_demo.csv` | Apropiacion SRTF, suspension por memoria y fragmentacion externa |
+| `lote_1_best_fit.csv` | Best-Fit elige el hueco mas chico aunque haya uno mas grande antes |
+| `lote_2_cupo_10_procesos.csv` | 10 procesos: cupo de multiprogramacion y memoria llenos |
+| `lote_3_cpu_ociosa_memoria_exacta.csv` | CPU ociosa entre arribos y un proceso de 450K exactos |
+| `lote_4_empate_srtf.csv` | Empate de tiempo restante: el proceso en CPU la conserva |
+
+## Entrega y ejecutable
+
+`HOWTO.md` es la guia de ejecucion que va en el paquete. Para generar el
+ejecutable y el ZIP de entrega:
+
+```bash
+python3 -m pip install pyinstaller
+python3 empaquetar.py
+```
+
+El script corre las pruebas, genera el ejecutable con PyInstaller
+(`kernelflow.spec`) y deja `entrega/KernelFlow-<sistema>.zip` con el
+ejecutable, la carpeta `data/`, el codigo fuente y el HOWTO. PyInstaller no
+genera ejecutables para otro sistema: el de Linux se arma en Linux.
+`docs/GUIA_INFORME.md` indica que capturar para el informe.
+
 ## Estructura
 
 - `carga.py` y `proceso.py`: lectura y modelo de procesos.
 - `memoria.py`: MVT y Best-Fit.
 - `estados.py` y `admision.py`: transiciones, cupo y colas.
 - `planificador.py`: reloj y SRTF apropiativo.
-- `estadisticas.py`: retorno, espera, promedios y rendimiento.
+- `estadisticas.py`: retorno, espera, respuesta, promedios y rendimiento.
 - `presentacion.py`: salida de consola e informe final.
 - `main.py`: menu, entrada e integracion de los modulos.
+- `empaquetar.py` y `kernelflow.spec`: ejecutable y paquete de entrega.
 
 ## Pruebas
 

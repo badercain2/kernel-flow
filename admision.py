@@ -171,14 +171,21 @@ class Admision:
         """
         mayor_hueco = self.memoria.mayor_hueco_libre()
         libre_total = self.memoria.memoria_libre_total()
+        huecos = [hueco.tamanio for hueco in self.memoria.obtener_huecos()]
         particion = self.memoria.asignar(proceso)
 
         if particion is not None:
             cambiar_estado(proceso, ESTADO_LISTO)
             motivo = (
-                f"Best-Fit le asigna {particion.tamanio}K en "
+                f"Best-Fit crea la particion {particion.numero} de "
+                f"{particion.tamanio}K en "
                 f"[{particion.direccion_inicio}K - {particion.direccion_fin}K)"
             )
+            if len(huecos) > 1:
+                motivo += (
+                    "; elige el hueco mas chico donde entra entre: "
+                    + ", ".join(f"{tamanio}K" for tamanio in huecos)
+                )
             self._transiciones.append(
                 Transicion(proceso, origen, ESTADO_LISTO, motivo)
             )

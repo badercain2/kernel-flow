@@ -133,6 +133,24 @@ class TestGestorMemoria(unittest.TestCase):
             [(100, 300, "P4"), (400, 50, None), (450, 100, "P3")],
         )
 
+    def test_id_de_particion_se_mantiene_al_liberar_otras(self) -> None:
+        memoria = GestorMemoria()
+        p1 = memoria.asignar("P1", 100)
+        p2 = memoria.asignar("P2", 50)
+        p3 = memoria.asignar("P3", 70)
+        self.assertEqual((p1.numero, p2.numero, p3.numero), (1, 2, 3))
+        self.assertEqual(memoria.particion_sistema_operativo().numero, 0)
+
+        memoria.liberar("P1")
+        self.assertEqual(memoria.obtener_asignacion("P2").numero, 2)
+        self.assertEqual(memoria.obtener_asignacion("P3").numero, 3)
+        self.assertIsNone(memoria.obtener_huecos()[0].numero)
+
+        # Una particion nueva recibe un numero nuevo, aunque reutilice el hueco.
+        p4 = memoria.asignar("P4", 100)
+        self.assertEqual(p4.direccion_inicio, DIRECCION_INICIO_USUARIO)
+        self.assertEqual(p4.numero, 4)
+
     def test_resumen_observable_para_presentacion(self) -> None:
         memoria = GestorMemoria()
         memoria.asignar("P1", 120)
