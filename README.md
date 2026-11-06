@@ -37,6 +37,21 @@ Antes de empezar se muestra la tabla de procesos cargados. Durante la
 simulacion, Espacio/Enter avanza al siguiente cambio y `q` vuelve
 al menu. Funciona en Linux y tambien en Windows (`py main.py`).
 
+## Colores y tablas
+
+En una terminal, cada paso muestra los eventos con una etiqueta de color
+(LLEGADA, SUSPENSION, APROPIACION, FIN, etc.) y tablas con bordes para los
+procesos, la memoria principal, la CPU y las dos colas. Los estados tienen un
+color propio (NUEVO gris, LISTO cian, LISTO/SUSP. amarillo, EJECUCION verde y
+TERMINADO azul). Si la terminal no muestra bien los colores:
+
+```bash
+python3 main.py --sin-color
+```
+
+Tambien se respeta la variable de entorno `NO_COLOR`. Si la terminal no
+soporta los caracteres de borde, las tablas se dibujan con `+`, `-` y `|`.
+
 ## Formato del CSV
 
 Cada linea contiene `id,tamanio,tiempo_arribo,tiempo_irrupcion`, sin encabezado.
@@ -134,7 +149,10 @@ genera ejecutables para otro sistema: el de Linux se arma en Linux.
 - `estados.py` y `admision.py`: transiciones, cupo y colas.
 - `planificador.py`: reloj y SRTF apropiativo.
 - `estadisticas.py`: retorno, espera, respuesta, promedios y rendimiento.
-- `presentacion.py`: salida de consola e informe final.
+- `presentacion.py`: salida de texto simple (sin terminal) e informe final.
+- `panel.py`: panel de la terminal con tablas de procesos, particiones, CPU,
+  cola LISTO y cola LISTO_SUSPENDIDO.
+- `estilo.py`: colores ANSI y tablas con bordes, sin librerias externas.
 - `main.py`: menu, entrada e integracion de los modulos.
 - `empaquetar.py` y `kernelflow.spec`: ejecutable y paquete de entrega.
 

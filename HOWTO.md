@@ -30,8 +30,11 @@ Windows:
     Doble clic en ejecutable\KernelFlow.exe
     (o desde una consola: cd ejecutable  y luego  KernelFlow.exe)
 
-Se recomienda una terminal de al menos 120 columnas de ancho (maximizada)
-para ver las tablas de procesos y de memoria una al lado de la otra.
+Se recomienda la terminal maximizada (al menos 130 columnas) para ver las
+tablas una al lado de la otra; con menos ancho se acomodan una debajo de otra.
+
+Si los colores no se ven bien, ejecute con la opcion --sin-color:
+    ./KernelFlow --sin-color          (Windows: KernelFlow.exe --sin-color)
 
 
 3. EJECUTAR DESDE EL CODIGO FUENTE

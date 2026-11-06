@@ -1,20 +1,25 @@
-"""Punto de entrada y panel de consola del simulador KernelFlow."""
+"""Punto de entrada y menu de consola del simulador KernelFlow."""
 
 import argparse
-from itertools import zip_longest
 import os
 from pathlib import Path
-import shutil
 import sys
 import textwrap
 from typing import Optional, Sequence
 
-from admision import Admision, ErrorAdmision, GRADO_MAXIMO_MULTIPROGRAMACION
+from admision import Admision, ErrorAdmision
 from carga import ErrorCargaProcesos, cargar_procesos
+from estilo import Estilo, preparar_terminal
 from memoria import GestorMemoria
-from planificador import EventoPlanificador, PlanificadorSRTF
+from panel import (
+    PanelConsola,
+    ancho_terminal as _ancho_terminal,
+    centrar_linea as _prefijo_centrado,
+    imprimir_bloque as _imprimir_bloque_centrado,
+    imprimir_centrado as _imprimir_linea_centrada,
+)
+from planificador import PlanificadorSRTF
 from presentacion import PresentacionConsola, seleccionar_archivo_csv
-from proceso import ESTADO_TERMINADO, Proceso
 
 
 if getattr(sys, "frozen", False):
@@ -26,144 +31,8 @@ DIRECTORIO_DATOS = DIRECTORIO_PROYECTO / "data"
 RUTA_CSV_PREDETERMINADA = DIRECTORIO_DATOS / "procesos_demo.csv"
 RUTA_LOGO_UTN = DIRECTORIO_DATOS / "logo_utn.txt"
 
-
-def _ancho_terminal() -> int:
-    """Obtiene el ancho disponible para presentar el contenido."""
-    return shutil.get_terminal_size(fallback=(100, 24)).columns
-
-
-def _prefijo_centrado(texto: str) -> str:
-    """Agrega espacios a la izquierda sin rellenar el final de la linea."""
-    return " " * max(0, (_ancho_terminal() - len(texto)) // 2) + texto
-
-
-def _imprimir_linea_centrada(texto: str) -> None:
-    print(_prefijo_centrado(texto))
-
-
-def _imprimir_bloque_centrado(lineas: Sequence[str]) -> None:
-    """Centra un bloque conservando la alineacion interna de sus lineas."""
-    if not lineas:
-        return
-    ancho_bloque = max(len(linea) for linea in lineas)
-    margen = " " * max(0, (_ancho_terminal() - ancho_bloque) // 2)
-    for linea in lineas:
-        print(margen + linea if linea else "")
-
-
-class PanelConsola(PresentacionConsola):
-    """Vista compacta para la ejecucion desde la terminal.
-
-    Los datos siguen perteneciendo a admision, memoria y los procesos. El
-    panel solo los consulta; no decide transiciones ni selecciona la CPU.
-    """
-
-    def __init__(
-        self,
-        procesos: Sequence[Proceso],
-        admision: Admision,
-        memoria: GestorMemoria,
-    ) -> None:
-        super().__init__(procesos, admision, memoria)
-        self._interactivo = sys.stdout.isatty()
-
-    def mostrar_inicio(self, ruta_csv: Path) -> None:
-        ancho = _ancho_terminal()
-        print("#" * ancho)
-        _imprimir_linea_centrada("PROCESOS CARGADOS")
-        print("#" * ancho)
-        _imprimir_linea_centrada(f"Archivo: {ruta_csv.name}")
-        _imprimir_linea_centrada(
-            f"{len(self.procesos)} proceso(s) leido(s) correctamente. Todos "
-            "comienzan en NUEVO y esperan su tiempo de arribo."
-        )
-        print()
-        _imprimir_bloque_centrado(self.tabla_procesos().splitlines())
-        print()
-        _imprimir_bloque_centrado((
-            "Memoria: 100K para el SO + 450K para usuario (MVT, Best-Fit).",
-            "Planificacion: SRTF apropiativo. Multiprogramacion maxima: 5.",
-        ))
-
-    def mostrar_paso(
-        self, eventos: Sequence[EventoPlanificador], tiempo: int, numero: int
-    ) -> None:
-        """Muestra juntos los cambios observados durante un avance del reloj."""
-        ancho = _ancho_terminal()
-        print("\n\n" + "#" * ancho)
-        _imprimir_linea_centrada(
-            f"COMIENZO DEL PASO {numero} | RELOJ: t = {tiempo} ut"
-        )
-        print("#" * ancho)
-        print()
-        _imprimir_linea_centrada("EVENTOS DE ESTE PASO")
-        lineas_eventos = []
-        for evento in eventos:
-            lineas_eventos.extend(textwrap.wrap(
-                f"- t = {evento.tiempo} | {evento.detalle}",
-                width=max(20, min(ancho - 8, 110)),
-                subsequent_indent="    ",
-            ))
-        _imprimir_bloque_centrado(lineas_eventos)
-        print("-" * ancho)
-        self._mostrar_resumen(tiempo)
-        self._mostrar_tablas()
-        print(f" FIN DEL PASO {numero} ".center(ancho, "="))
-
-    def mostrar_fin(self, tiempo: int) -> None:
-        ancho = _ancho_terminal()
-        print("\n" + "#" * ancho)
-        _imprimir_linea_centrada(f"SIMULACION FINALIZADA EN t = {tiempo} ut")
-        print("#" * ancho)
-        _imprimir_linea_centrada(
-            f"Memoria de usuario libre: {self.memoria.memoria_libre_total()}K."
-        )
-        print()
-        _imprimir_bloque_centrado(self.lineas_informe(tiempo))
-
-    def _mostrar_resumen(self, tiempo: int) -> None:
-        terminados = sum(
-            proceso.estado == ESTADO_TERMINADO for proceso in self.procesos
-        )
-        resumen, listos, suspendidos = self.lineas_resumen(tiempo)
-        _imprimir_linea_centrada(resumen)
-        _imprimir_linea_centrada(
-            f"TERMINADOS: {terminados}/{len(self.procesos)}   "
-            "MULTIPROGRAMACION: "
-            f"{self.admision.grado_multiprogramacion()}/"
-            f"{GRADO_MAXIMO_MULTIPROGRAMACION}"
-        )
-        print()
-        _imprimir_linea_centrada(f"COLA {listos}")
-        _imprimir_linea_centrada(f"COLA {suspendidos}")
-        _imprimir_linea_centrada("(entre parentesis: tiempo restante en ut)")
-
-    def _mostrar_tablas(self) -> None:
-        tabla_procesos = self.tabla_procesos().splitlines()
-        tabla_memoria = self.tabla_memoria().splitlines()
-        ancho_procesos = len(tabla_procesos[0])
-        ancho_memoria = len(tabla_memoria[0])
-        ancho_terminal = _ancho_terminal()
-
-        print()
-        if self._interactivo and ancho_procesos + ancho_memoria + 3 <= ancho_terminal:
-            lineas = [
-                "ESTADO DE LOS PROCESOS".ljust(ancho_procesos)
-                + "   TABLA DE PARTICIONES (KB)"
-            ]
-            for izquierda, derecha in zip_longest(
-                tabla_procesos, tabla_memoria, fillvalue=""
-            ):
-                lineas.append(f"{izquierda:<{ancho_procesos}}   {derecha}")
-            _imprimir_bloque_centrado(lineas)
-        else:
-            _imprimir_linea_centrada("ESTADO DE LOS PROCESOS")
-            _imprimir_bloque_centrado(tabla_procesos)
-            print()
-            _imprimir_linea_centrada("TABLA DE PARTICIONES (KB)")
-            _imprimir_bloque_centrado(tabla_memoria)
-
-        _imprimir_linea_centrada(self.linea_memoria_libre())
+# Se define en main() segun la terminal y la opcion --sin-color.
+ESTILO = Estilo()
 
 
 OPCIONES_MENU = (
@@ -201,16 +70,21 @@ def _mostrar_menu() -> None:
         margen_logo = min(
             len(linea) - len(linea.lstrip()) for linea in logo if linea.strip()
         )
-        _imprimir_bloque_centrado([linea[margen_logo:] for linea in logo])
+        _imprimir_bloque_centrado(
+            [ESTILO.c(linea[margen_logo:], "azul") for linea in logo]
+        )
 
-    print("=" * ancho)
-    _imprimir_linea_centrada("K E R N E L F L O W")
+    e = ESTILO
+    doble = e.c(e.linea(ancho, doble=True), "cian")
+    simple = e.c(e.linea(ancho), "gris")
+    print(doble)
+    _imprimir_linea_centrada(e.c("K E R N E L F L O W", "negrita", "cian"))
     _imprimir_linea_centrada(
         "Simulador de planificacion SRTF y memoria MVT (Best-Fit)"
     )
-    print("=" * ancho)
-    _imprimir_linea_centrada("GRUPO 15")
-    _imprimir_bloque_centrado((
+    print(doble)
+    _imprimir_linea_centrada(e.c("GRUPO 15", "negrita"))
+    _imprimir_bloque_centrado([e.c(nombre, "gris") for nombre in (
         "BADER SORAIRE Cain Abel",
         "GONZALEZ Carlos Alfredo",
         "LEIVA ROMERO Agustin Nazareno",
@@ -218,14 +92,14 @@ def _mostrar_menu() -> None:
         "TORRES Alejandro Valentin",
         "WOLKOWYSKI Braian Leonel",
         "ZURANO LANG Lucas Maximiliano",
-    ))
-    print("-" * ancho)
+    )])
+    print(simple)
     lineas = []
     ancho_texto = max(30, min(ancho - 10, 72))
     for clave, titulo, descripcion in OPCIONES_MENU:
-        lineas.append(f"[{clave}] {titulo}")
+        lineas.append(e.c(f"[{clave}]", "amarillo", "negrita") + " " + e.c(titulo, "negrita"))
         lineas.extend(
-            textwrap.wrap(
+            e.c(linea, "gris") for linea in textwrap.wrap(
                 descripcion,
                 width=ancho_texto,
                 initial_indent="    ",
@@ -234,7 +108,7 @@ def _mostrar_menu() -> None:
         )
         lineas.append("")
     _imprimir_bloque_centrado(lineas[:-1])
-    print("-" * ancho)
+    print(simple)
 
 
 def _mostrar_guia_rapida() -> None:
@@ -276,17 +150,21 @@ def _mostrar_guia_rapida() -> None:
    "FIN DEL PASO". Dentro de cada paso se listan todos los
    cambios de estado ocurridos (llegadas, admisiones,
    suspensiones, apropiaciones y finalizaciones) con su motivo.
-   Luego se muestran la CPU, las colas LISTO y LISTO_SUSPENDIDO
-   (con el tiempo restante entre parentesis), la tabla de
-   procesos y la tabla de particiones de memoria.
+   Luego se muestran en tablas: los procesos, la memoria
+   principal (particiones), la CPU, la cola LISTO (en el orden
+   en que SRTF los elegiria) y la cola LISTO_SUSPENDIDO, con el
+   tiempo restante y la espera acumulada de cada proceso.
+   Si los colores no se ven bien, use la opcion --sin-color.
    NUEVO espera su llegada o un cupo; LISTO espera la CPU;
    LISTO_SUSPENDIDO espera memoria; EJECUCION usa la CPU;
    TERMINADO ya completo su trabajo. La CPU puede estar OCIOSA.
 
 5. Columnas de la tabla de procesos
-   T. Irrupcion: tiempo total de CPU que necesita el proceso.
-   T. Ejecutado: tiempo de CPU ya consumido.
-   T. Restante: tiempo de CPU que le falta (lo usa SRTF).
+   T.Irrup.: tiempo de irrupcion (CPU total que necesita).
+   T.Ejec.: tiempo de CPU ya consumido.
+   T.Rest.: tiempo de CPU que le falta (lo usa SRTF).
+   Espera: tiempo en el sistema sin usar la CPU hasta ahora.
+   NUEVO*: el proceso ya llego pero espera cupo (maximo 5).
 
 6. Informe final
    Al terminar se muestran, por proceso, el tiempo de retorno
@@ -463,6 +341,11 @@ def crear_argumentos(argumentos: Optional[Sequence[str]] = None) -> argparse.Nam
         default=None,
         help="CSV de procesos (por defecto: data/procesos_demo.csv).",
     )
+    analizador.add_argument(
+        "--sin-color",
+        action="store_true",
+        help="Muestra la salida sin colores (util si la terminal no los soporta).",
+    )
     return analizador.parse_args(argumentos)
 
 
@@ -480,8 +363,10 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
     except ErrorAdmision as error:
         _imprimir_linea_centrada(f"Error: {error}")
         return 1
-    clase_presentacion = PanelConsola if modo_visual else PresentacionConsola
-    presentacion = clase_presentacion(procesos, admision, memoria)
+    if modo_visual:
+        presentacion = PanelConsola(procesos, admision, memoria, ESTILO)
+    else:
+        presentacion = PresentacionConsola(procesos, admision, memoria)
 
     presentacion.mostrar_inicio(ruta_csv)
 
@@ -532,7 +417,10 @@ def ejecutar_simulacion(ruta_csv: Path, modo_visual: bool = False) -> int:
 
 def main(argumentos: Optional[Sequence[str]] = None) -> int:
     """Ejecuta KernelFlow y retorna un codigo apto para la consola de Linux."""
+    global ESTILO
     opciones = crear_argumentos(argumentos)
+    preparar_terminal()
+    ESTILO = Estilo.detectar(sin_color=opciones.sin_color)
     try:
         if opciones.archivo is not None:
             return ejecutar_simulacion(opciones.archivo, modo_visual=True)

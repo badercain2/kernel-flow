@@ -3,7 +3,8 @@
 Uso (desde la raiz del proyecto):
 
     python3 -m pip install pyinstaller
-    python3 empaquetar.py
+    python3 empaquetar.py                  (deja el paquete en entrega/)
+    python3 empaquetar.py otra_carpeta     (elige la carpeta de salida)
 
 PyInstaller no compila para otro sistema operativo: el ejecutable de Linux se
 genera en Linux y el de Windows en Windows. El resultado queda en
@@ -33,6 +34,8 @@ ARCHIVOS_FUENTE = (
     "admision.py",
     "planificador.py",
     "presentacion.py",
+    "panel.py",
+    "estilo.py",
     "estadisticas.py",
     "kernelflow.spec",
     "empaquetar.py",
@@ -52,7 +55,10 @@ def _ignorar_cache(_directorio, nombres):
     return [nombre for nombre in nombres if nombre == "__pycache__"]
 
 
-def main() -> int:
+def main(argumentos=None) -> int:
+    argumentos = sys.argv[1:] if argumentos is None else argumentos
+    carpeta_salida = RAIZ / (argumentos[0] if argumentos else "entrega")
+
     print("1/4 Ejecutando las pruebas...")
     pruebas = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
@@ -85,7 +91,7 @@ def main() -> int:
 
     print("3/4 Armando la carpeta de entrega...")
     nombre_paquete = f"KernelFlow-{_nombre_sistema()}"
-    destino = RAIZ / "entrega" / nombre_paquete
+    destino = carpeta_salida / nombre_paquete
     if destino.exists():
         shutil.rmtree(destino)
 
